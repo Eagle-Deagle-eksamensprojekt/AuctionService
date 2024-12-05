@@ -1,11 +1,30 @@
+using Microsoft.AspNetCore.Builder;
+using Services;
+using NLog;
+using NLog.Web;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+// NLog setup
+var logger = NLog.LogManager.Setup().LoadConfigurationFromAppSettings()
+    .GetCurrentClassLogger();
+logger.Debug("init main"); // NLog setup
+
+// Register Auction MongoDB repository (similar to UserMongoDBService)
+builder.Services.AddSingleton<IAuctionDbRepository, AuctionMongoDBService>(); // Register MongoDB repository for AuctionService
+
+// Register other services
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+// Swagger/OpenAPI configuration
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Register NLog for logging
+builder.Logging.ClearProviders();
+builder.Host.UseNLog();
 
 var app = builder.Build();
 
@@ -17,9 +36,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
