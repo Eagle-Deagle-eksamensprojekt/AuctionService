@@ -54,12 +54,12 @@ jobs:
     - name: Extract version from .csproj
       id: version
       run: |
-        VERSION=$(cat auctionServiceAPI/auctionServiceAPI.csproj | grep -oPm1 "(?<=<Version>)[^<]+")
+        VERSION=$(cat auctionServiceApi/auctionServiceApi.csproj | grep -oPm1 "(?<=<Version>)[^<]+")
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Build Docker image with version tag
       run: |
-        docker build -t mikkelhv/4semauctionservice:${{ env.VERSION }} -f ./auctionServiceAPI/Dockerfile ./auctionServiceAPI
+        docker build -t mikkelhv/4semauctionservice:${{ env.VERSION }} -f ./auctionServiceApi/Dockerfile ./auctionServiceApi
 
     - name: Push Docker image to Docker Hub
       run: |
