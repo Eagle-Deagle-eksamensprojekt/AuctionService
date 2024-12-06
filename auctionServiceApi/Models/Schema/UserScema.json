@@ -7,10 +7,6 @@
         "type": "string",
         "description": "MongoDB's auto-generated ID for the auction document"
       },
-      "AuctionId": {
-        "type": "string",
-        "description": "A unique identifier for the auction"
-      },
       "Bids": {
         "type": "array",
         "description": "List of bids placed on the auction",
@@ -36,7 +32,7 @@
         "description": "Reference to the item being auctioned"
       }
     },
-    "required": ["_id", "AuctionId", "Bids", "ItemID"],
+    "required": ["_id", "Bids", "ItemID"],
     "additionalProperties": false
   }
   
