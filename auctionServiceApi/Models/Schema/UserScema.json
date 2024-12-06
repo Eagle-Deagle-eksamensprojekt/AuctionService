@@ -1,0 +1,38 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Auction Schema",
+    "type": "object",
+    "properties": {
+      "_id": {
+        "type": "string",
+        "description": "MongoDB's auto-generated ID for the auction document"
+      },
+      "Bids": {
+        "type": "array",
+        "description": "List of bids placed on the auction",
+        "items": {
+          "type": "object",
+          "properties": {
+            "BidAmount": {
+              "type": "number",
+              "description": "Amount of the bid",
+              "minimum": 0.01
+            },
+            "UserId": {
+              "type": "string",
+              "description": "The unique identifier for the user who placed the bid"
+            }
+          },
+          "required": ["BidAmount", "UserId"],
+          "additionalProperties": false
+        }
+      },
+      "ItemID": {
+        "type": "string",
+        "description": "Reference to the item being auctioned"
+      }
+    },
+    "required": ["_id", "Bids", "ItemID"],
+    "additionalProperties": false
+  }
+  
