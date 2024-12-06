@@ -16,12 +16,6 @@ namespace AuctionService.Models
         public string Id { get; set; }
 
         /// <summary>
-        /// A unique identifier for the auction
-        /// </summary>
-        [JsonPropertyName("AuctionId")]
-        public string AuctionId { get; set; }
-
-        /// <summary>
         /// List of bids placed on the auction
         /// </summary>
         [JsonPropertyName("Bids")]

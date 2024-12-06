@@ -47,7 +47,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateAuction([FromBody] Auction newAuction)
         {
-            if (newAuction == null || string.IsNullOrWhiteSpace(newAuction.AuctionId) || string.IsNullOrWhiteSpace(newAuction.ItemId))
+            if (newAuction == null || string.IsNullOrWhiteSpace(newAuction.Id) || string.IsNullOrWhiteSpace(newAuction.ItemId))
             {
                 return BadRequest("Auction data is invalid");
             }
