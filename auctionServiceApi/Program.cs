@@ -26,6 +26,10 @@ builder.Services.AddSwaggerGen();
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
 
+// Register HttpClientFactory
+builder.Services.AddHttpClient(); //tjek
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

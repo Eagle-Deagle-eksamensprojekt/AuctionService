@@ -6,25 +6,53 @@ namespace AuctionService.Models
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using System.Globalization;
+    using MongoDB.Bson.Serialization.Attributes;
+    using MongoDB.Bson;
 
     public partial class Auction
     {
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
         /// <summary>
         /// MongoDB's auto-generated ID for the auction document
         /// </summary>
-        [JsonPropertyName("_id")]
+        [JsonPropertyName("id")]
         public string Id { get; set; }
 
         /// <summary>
         /// List of bids placed on the auction
         /// </summary>
-        [JsonPropertyName("Bids")]
+        [JsonPropertyName("bids")]
         public List<BidElement> Bids { get; set; }
 
         /// <summary>
         /// Reference to the item being auctioned
         /// </summary>
-        [JsonPropertyName("ItemID")]
+        [JsonPropertyName("OwnerId")]
+        public string OwnerId { get; set; }
+
+        /// <summary>
+        /// The date and time when the auction ends
+        /// </summary>
+        [JsonPropertyName("endAuctionDateTime")]
+        public DateTimeOffset EndAuctionDateTime { get; set; }
+
+        /// <summary>
+        /// The date and time when the auction starts
+        /// </summary>
+        [JsonPropertyName("startAuctionDateTime")]
+        public DateTimeOffset StartAuctionDateTime { get; set; }
+
+        /// <summary>
+        /// The current highest bid on the auction
+        /// </summary>
+        [JsonPropertyName("currentBid")]
+        public double CurrentBid { get; set; }
+
+        /// <summary>
+        /// The ID of the item being auctioned
+        /// </summary>
+        [JsonPropertyName("itemId")]
         public string ItemId { get; set; }
     }
 

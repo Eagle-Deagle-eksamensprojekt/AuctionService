@@ -22,6 +22,10 @@ namespace Services
         Task<bool> DeleteAuction(string id);
 
         // Hent en auktion baseret på ItemId
-        Task<Auction> GetAuctionByItemId(string itemId);
+        //Task<Auction> GetAuctionByItemId(string itemId);
+
+        Task<bool> ItemExists(string itemId); // Check om et item allerede eksistere i databasen
+        Task AddAuctionItem(Item item); // Gemmer item i databasen
+
     }
 }

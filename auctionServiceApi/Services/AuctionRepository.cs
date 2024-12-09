@@ -90,9 +90,29 @@ namespace Services
             }
         }
 
+/*
         public async Task<Auction> GetAuctionByItemId(string itemId)
         {
             return await _auctionCollection.Find(a => a.ItemId == itemId).FirstOrDefaultAsync();
+        }
+        */
+
+        public async Task<bool> ItemExists(string itemId)
+        {
+            return await _auctionCollection.Find(a => a.ItemId == itemId).AnyAsync();
+        }
+
+        public async Task AddAuctionItem(Item item)
+        {
+            var auction = new Auction
+            {
+                ItemId = item.Id,
+                StartAuctionDateTime = item.StartAuctionDateTime,
+                EndAuctionDateTime = item.EndAuctionDateTime,
+                OwnerId = item.OwnerId
+            };
+
+            await CreateAuction(auction);
         }
     }
 }

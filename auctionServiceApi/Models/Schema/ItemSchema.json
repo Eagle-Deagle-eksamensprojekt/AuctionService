@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Item",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "A unique identifier for the user as a GUID.",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "title": {
+      "type": "string",
+      "description": "The title or name of the item."
+    },
+    "description": {
+      "type": "string",
+      "description": "A detailed description of the item."
+    },
+    "ownerId": {
+      "type": "string",
+      "description": "The ID of the user who owns this item (must reference a user with isSeller = true).",
+      "pattern": "^[a-fA-F0-9]{24}$"
+    },
+    "startAuctionDateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The start date and time for the auction of this item."
+    },
+    "endAuctionDateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The end date and time for the auction of this item."
+    },
+    "createdDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The date and time when the item was created."
+    },
+    "startPrice": {
+      "type": "number",
+      "minimum": 0,
+      "description": "The starting price for the auction of this item."
+    },
+    "vurdertPrice": {
+      "type": "number",
+      "minimum": 0,
+      "description": "The estimated value of the item."
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "description",
+    "ownerId",
+    "startAuctionDateTime",
+    "endAuctionDateTime",
+    "createdDate",
+    "startPrice",
+    "vurdertPrice"
+  ]
+}
