@@ -137,7 +137,7 @@ namespace AuctionServiceAPI.Controllers
         private async Task AddAuctionItem(Item item)
         {
             var startTime = DateTimeOffset.UtcNow.Date.AddHours(8); // Næste dag kl. 08:00
-            var endTime = startTime.AddHours(8); // Slutter kl. 16:00
+            var endTime = startTime.AddHours(24); // Slutter kl. 8:00 næste dag
 
             var auction = new Auction
             {

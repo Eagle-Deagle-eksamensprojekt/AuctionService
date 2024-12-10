@@ -16,15 +16,9 @@ namespace Services
         {
             _logger = logger;
 
-            var connectionString = configuration["MongoConnectionString"];
-            var databaseName = configuration["DatabaseName"];
-            var collectionName = configuration["CollectionName"];
-
-            if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(databaseName) || string.IsNullOrWhiteSpace(collectionName))
-            {
-                _logger.LogError("MongoDB configuration is incomplete.");
-                throw new ArgumentException("Invalid MongoDB configuration.");
-            }
+            var connectionString = configuration["MongoConnectionString"] ?? "<blank>";
+            var databaseName = configuration["DatabaseName"] ?? "<blank>";
+            var collectionName = configuration["collectionName"] ?? "<blank>";
 
             _logger.LogInformation($"Connecting to MongoDB using: {connectionString}");
             _logger.LogInformation($"Using database: {databaseName}");
@@ -37,7 +31,7 @@ namespace Services
                 _auctionCollection = database.GetCollection<Auction>(collectionName);
                 _logger.LogInformation("Connected to MongoDB.");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 _logger.LogError("Failed to connect to MongoDB: {0}", ex.Message);
                 throw;

@@ -3,4 +3,4 @@ export MongoConnectionString=mongodb://admin:1234@localhost:27019/
 export DatabaseName=AuctionDB
 export CollectionName=auctions
 export Loki=http://localhost:3100
-export ItemServiceEndpoint=http://localhost:5001/item
+export ItemServiceEndpoint=http://localhost:5140/item
