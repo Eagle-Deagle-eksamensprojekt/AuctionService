@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace AuctionServiceAPI.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     public class AuctionController : ControllerBase
     {
         private readonly ILogger<AuctionController> _logger;
@@ -151,6 +151,36 @@ namespace AuctionServiceAPI.Controllers
 
             await _auctionDbRepository.CreateAuction(auction);
             _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
+        }
+
+
+        /// <summary>
+        /// Bid service skal validere om et bud er gyldigt inden den poste til RabbitMQ
+        /// </summary>
+        // Tjekker om item er true, hvis den er auctionable
+        [HttpGet("auctionable/{itemId}")]
+        public async Task<IActionResult> CheckItemIsAuctionable(string itemId, [FromQuery] string dateTime)
+        {
+            if (string.IsNullOrWhiteSpace(itemId))
+            {
+                return BadRequest("Item ID is required.");
+            }
+
+            if (!DateTimeOffset.TryParse(dateTime, out var parsedDateTime)) // Tjekker om DateTime er gyldig
+            {
+                return BadRequest("Invalid DateTime format."); // Returnerer bad request hvis DateTime ikke er gyldig
+            }
+
+            try
+            {
+                var isAuctionable = await _auctionDbRepository.CheckItemIsAuctionable(itemId, parsedDateTime.UtcDateTime);
+                return Ok(isAuctionable);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if item is auctionable.");
+                return StatusCode(500, "An error occurred while checking the item.");
+            }
         }
     }
 }
