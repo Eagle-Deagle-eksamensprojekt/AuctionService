@@ -18,22 +18,26 @@ namespace AuctionServiceAPI.Controllers
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _config;
         private readonly IMemoryCache _memoryCache;
+        private readonly RabbitMQListener _rabbitListener;
 
 
         public AuctionController(
             ILogger<AuctionController> logger,
             IAuctionDbRepository auctionDbRepository,
             IHttpClientFactory httpClientFactory,
+            IMemoryCache memoryCache,
             IConfiguration config,
-            IMemoryCache memoryCache)
+            RabbitMQListener rabbitListener)
+            
         {
             _logger = logger;
             _auctionDbRepository = auctionDbRepository;
             _httpClientFactory = httpClientFactory;
-            _config = config;
             _memoryCache = memoryCache;
-
+            _config = config;
+            _rabbitListener = rabbitListener;
         }
+
 
         /// <summary>
         /// Hent alle auktioner.
@@ -55,6 +59,7 @@ namespace AuctionServiceAPI.Controllers
             {
                 _logger.LogInformation("Auktioner hentet fra cache.");
             }
+
 
             return Ok(auctions);
         }
@@ -128,6 +133,7 @@ namespace AuctionServiceAPI.Controllers
                 var exists = await _auctionDbRepository.ItemExists(item.Id!);
                 if (!exists)
                 {
+                    
                     auctionableItems.Add(item);
                     if (auctionableItems.Count == 3)
                         break;
@@ -197,6 +203,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpGet("auctionable/{itemId}")]
         public async Task<IActionResult> CheckItemIsAuctionable(string itemId, [FromQuery] string dateTime)
         {
+
             if (string.IsNullOrWhiteSpace(itemId))
             {
                 return BadRequest("Item ID is required.");
@@ -209,7 +216,9 @@ namespace AuctionServiceAPI.Controllers
 
             try
             {
+                _logger.LogInformation("Checking if item {ItemId} is auctionable at {DateTime}.", itemId, parsedDateTime);
                 var isAuctionable = await _auctionDbRepository.CheckItemIsAuctionable(itemId, parsedDateTime.UtcDateTime);
+                _logger.LogInformation("Item {ItemId} is auctionable: {IsAuctionable}", itemId, isAuctionable);
                 return Ok(isAuctionable);
             }
             catch (Exception ex)
@@ -259,5 +268,38 @@ namespace AuctionServiceAPI.Controllers
             return Task.CompletedTask;
         }
 */
+        [HttpPost("clear-cache")]
+        public IActionResult ClearCache()
+        {
+            _memoryCache.Remove("all_auctions");
+            _logger.LogInformation("Cache for 'all_auctions' er blevet ryddet.");
+            return Ok("Cache cleared.");
+        }
+
+        [HttpPost("start-auction")]
+        public async Task<IActionResult> StartAuction(string itemId)
+        {
+            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+            if (auction == null)
+            {
+                return NotFound("Auction not found for the specified item.");
+            }
+
+            if (DateTimeOffset.UtcNow >= auction.EndAuctionDateTime)
+            {
+                return BadRequest("Cannot start listening for an auction that has already ended.");
+            }
+
+            _rabbitListener.StartListening(itemId, auction.EndAuctionDateTime);
+            return Ok($"Started listening for auction on item {itemId}.");
+        }
+
+        [HttpPost("stop-auction")]
+        public IActionResult StopAuction(string itemId)
+        {
+            _rabbitListener.StopListening(itemId);
+            return Ok($"Stopped listening for auction on item {itemId}.");
+        }
+
     }
 }

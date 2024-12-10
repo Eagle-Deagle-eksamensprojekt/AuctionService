@@ -123,6 +123,8 @@ namespace Services
         public async Task<bool> CheckItemIsAuctionable(string itemId, DateTime currentDateTime)
         {
             var auction = await GetAuctionByItemId(itemId);
+            _logger.LogInformation("Start: {Start}, End: {End}, Bid: {Bid}", auction.StartAuctionDateTime, auction.EndAuctionDateTime, currentDateTime);
+
             if (auction == null)
             {
                 _logger.LogInformation("No auction found for item {ItemId}", itemId);

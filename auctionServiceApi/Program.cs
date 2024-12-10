@@ -15,7 +15,10 @@ logger.Debug("init main"); // NLog setup
 // Register Auction MongoDB repository (similar to UserMongoDBService)
 builder.Services.AddSingleton<IAuctionDbRepository, AuctionMongoDBService>(); // Register MongoDB repository for AuctionService
 
+builder.Services.AddSingleton<RabbitMQListener>(); // Register RabbitMQ listener as a singleton
+
 builder.Services.AddMemoryCache(); 
+
 
 // Register other services
 builder.Services.AddControllers();
@@ -33,6 +36,22 @@ builder.Services.AddHttpClient(); //tjek
 
 
 var app = builder.Build();
+
+/// <summary>
+/// 
+var rabbitListener = app.Services.GetRequiredService<RabbitMQListener>();
+var auctionRepo = app.Services.GetRequiredService<IAuctionDbRepository>();
+
+var activeAuctions = await auctionRepo.GetAllAuctions();
+foreach (var auction in activeAuctions)
+{
+    if (DateTimeOffset.UtcNow < auction.EndAuctionDateTime)
+    {
+        rabbitListener.StartListening(auction.ItemId, auction.EndAuctionDateTime);
+    }
+}
+
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
