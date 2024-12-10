@@ -1,4 +1,4 @@
-namespace AuctionService.Models
+namespace AuctionServiceAPI.Models
 {
     using System;
     using System.Collections.Generic;
@@ -28,20 +28,20 @@ namespace AuctionService.Models
         /// <summary>
         /// Reference to the item being auctioned
         /// </summary>
-        [JsonPropertyName("OwnerId")]
-        public string OwnerId { get; set; }
+        [JsonPropertyName("currentWinnerId")]
+        public string CurrentWinnerId { get; set; }
+
+        /// <summary>
+        /// The start date and time for the auction of this item.
+        /// </summary>
+        [JsonPropertyName("startAuctionDateTime")]
+        public DateTimeOffset StartAuctionDateTime { get; set; }
 
         /// <summary>
         /// The date and time when the auction ends
         /// </summary>
         [JsonPropertyName("endAuctionDateTime")]
         public DateTimeOffset EndAuctionDateTime { get; set; }
-
-        /// <summary>
-        /// The date and time when the auction starts
-        /// </summary>
-        [JsonPropertyName("startAuctionDateTime")]
-        public DateTimeOffset StartAuctionDateTime { get; set; }
 
         /// <summary>
         /// The current highest bid on the auction

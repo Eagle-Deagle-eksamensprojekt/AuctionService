@@ -30,6 +30,26 @@
       "ItemID": {
         "type": "string",
         "description": "Reference to the item being auctioned"
+      },
+    "startAuctionDateTime": {
+        "type": "string",
+        "format": "date-time",
+        "description": "The start date and time for the auction of this item."
+      },
+      "endAuctionDateTime": {
+        "type": "string",
+        "format": "date-time",
+        "description": "The end date and time for the auction of this item."
+      },
+      "currentWinnerId": {
+        "type": "string",
+        "description": "The ID of the user who has the highest bid.",
+        "pattern": "^[a-fA-F0-9]{24}$"
+      },
+      "currentBid": {
+        "type": "number",
+        "minimum": 0,
+        "description": "The current highest bid."
       }
     },
     "required": ["_id", "Bids", "ItemID"],

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using AuctionService.Models; // Antager, at Auction-modellen findes her
+using AuctionServiceAPI.Models; // Antager, at Auction-modellen findes her
 
 namespace Services
 {
@@ -26,6 +26,7 @@ namespace Services
 
         Task<bool> ItemExists(string itemId); // Check om et item allerede eksistere i databasen
         Task AddAuctionItem(Item item); // Gemmer item i databasen
-
+        Task<bool> CheckItemIsAuctionable(string id, DateTime currentDateTime);
+        Task<list<Item>> GetItems(); // Modtager en liste over items
     }
 }

@@ -1,10 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Services;  // For the IAuctionDbRepository interface
-using AuctionService.Models;
-using System.Text;
+using AuctionServiceAPI.Models;
+using Services; // For the IAuctionDbRepository interface
 using System.Text.Json;
 
 namespace AuctionServiceAPI.Controllers
@@ -15,166 +12,145 @@ namespace AuctionServiceAPI.Controllers
     {
         private readonly ILogger<AuctionController> _logger;
         private readonly IAuctionDbRepository _auctionDbRepository;
-        private readonly IConfiguration _config; //bruges til at hente konfigurationsdata
-        private readonly IHttpClientFactory _httpClientFactory; //bruges til at lave HTTP requests til andre services
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _config;
 
-        // Constructor to inject dependencies
-        public AuctionController(ILogger<AuctionController> logger,IConfiguration config, IAuctionDbRepository auctionDbRepository, IHttpClientFactory httpClientFactory)
+        public AuctionController(
+            ILogger<AuctionController> logger,
+            IAuctionDbRepository auctionDbRepository,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration config)
         {
             _logger = logger;
-            _config = config;
             _auctionDbRepository = auctionDbRepository;
             _httpClientFactory = httpClientFactory;
+            _config = config;
         }
-        
 
-        // Get an auction by ID
+        /// <summary>
+        /// Hent alle auktioner.
+        /// </summary>
+        [HttpGet("all")]
+        public async Task<IActionResult> GetAllAuctions()
+        {
+            var auctions = await _auctionDbRepository.GetAllAuctions();
+            return Ok(auctions);
+        }
+
+        /// <summary>
+        /// Hent en specifik auktion ved ID.
+        /// </summary>
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAuctionById(string id)
         {
             var auction = await _auctionDbRepository.GetAuctionById(id);
 
             if (auction == null)
-            {
-                return Ok(null); // Returnerer null, hvis auktionen ikke findes
-            }
+                return NotFound($"Auction with ID {id} not found.");
 
-            return Ok(auction); // Returnerer 200 OK med auktionsdata
+            return Ok(auction);
         }
 
-        // Get all auctions
-        [HttpGet("all")]
-        public async Task<IActionResult> GetAllAuctions()
+        /// <summary>
+        /// Hent items fra ItemService og gem de 3 ældste i databasen som auktioner.
+        /// </summary>
+        [HttpGet("fetch-and-save-auctionable")]
+        public async Task<IActionResult> FetchAndSaveAuctionableItems()
         {
-            var auctions = await _auctionDbRepository.GetAllAuctions();
-            return Ok(auctions); // Returnerer listen over auktioner med statuskode 200
-        }
-
-        // Create a new auction
-        [HttpPost]
-        public async Task<IActionResult> CreateAuction([FromBody] Auction newAuction)
-        {
-            if (newAuction == null || string.IsNullOrWhiteSpace(newAuction.Id) || string.IsNullOrWhiteSpace(newAuction.ItemId))
-            {
-                return BadRequest("Auction data is invalid");
-            }
-
-            // Gem auktionen i databasen
-            var wasCreated = await _auctionDbRepository.CreateAuction(newAuction);
-            if (wasCreated)
-            {
-                return CreatedAtAction(nameof(GetAuctionById), new { id = newAuction.Id }, newAuction);
-            }
-
-            return Conflict("Auction already exists");
-        }
-
-        // Update an auction
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAuction(string id, [FromBody] Auction updatedAuction)
-        {
-            var wasUpdated = await _auctionDbRepository.UpdateAuction(id, updatedAuction);
-
-            if (!wasUpdated)
-            {
-                return Ok(null); // Returnerer null, hvis auktionen ikke findes
-            }
-
-            return Ok(); // Returnerer 200, hvis opdateringen lykkes
-        }
-
-        // Delete an auction
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteAuction(string id)
-        {
-            var wasDeleted = await _auctionDbRepository.DeleteAuction(id);
-
-            if (!wasDeleted)
-            {
-                return Ok(null); // Returnerer null, hvis auktionen ikke findes
-            }
-
-            return NoContent(); // Returnerer 204, hvis sletningen lykkes
-        }
-
-
-
-        // Get auctionable items from the item service, should be a list
-        // of items that are available for auctioning
-         private async Task<List<Item>> GetAuctionableItems()
-        {
-            var existsUrl = $"{_config["ItemServiceEndpoint"]}/auctionable";
-            var client = _httpClientFactory.CreateClient();
-            HttpResponseMessage response;
-
             try
             {
-                client.DefaultRequestHeaders.Add("Accept", "application/json");
-                response = await client.GetAsync(existsUrl);
+                var auctionableItems = await GetAndSaveAuctionableItems();
+                if (auctionableItems == null || !auctionableItems.Any())
+                    return Ok("No auctionable items were found or saved.");
+
+                return Ok(auctionableItems);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error while connecting to ItemService.");
-                return new List<Item>(); // Returner tom liste ved fejl
+                _logger.LogError(ex, "An error occurred while fetching and saving auctionable items.");
+                return StatusCode(500, "An error occurred while processing the request.");
+            }
+        }
+
+        /// <summary>
+        /// Intern metode til at hente og gemme auktioner.
+        /// </summary>
+        private async Task<List<Item>> GetAndSaveAuctionableItems()
+        {
+            // Hent items fra ItemService
+            var items = await GetItemsFromItemService();
+            if (items == null || !items.Any())
+                return new List<Item>();
+
+            // Sorter items efter oprettelsesdato (ældste først)
+            var sortedItems = items.OrderBy(i => i.CreatedDate).ToList();
+
+            // Find de 3 ældste, der ikke allerede er i databasen
+            var auctionableItems = new List<Item>();
+            foreach (var item in sortedItems)
+            {
+                var exists = await _auctionDbRepository.ItemExists(item.Id!);
+                if (!exists)
+                {
+                    auctionableItems.Add(item);
+                    if (auctionableItems.Count == 3)
+                        break;
+                }
             }
 
-            if (!response.IsSuccessStatusCode)
+            // Opret auktioner for de fundne items
+            foreach (var item in auctionableItems)
             {
-                _logger.LogWarning("ItemService returned a non-success status: {StatusCode}", response.StatusCode);
-                return new List<Item>(); // Returner tom liste ved fejlstatus
+                await AddAuctionItem(item);
             }
+
+            return auctionableItems;
+        }
+
+        /// <summary>
+        /// Intern metode til at hente items fra ItemService.
+        /// </summary>
+        private async Task<List<Item>> GetItemsFromItemService()
+        {
+            var client = _httpClientFactory.CreateClient();
+            var url = $"{_config["ItemServiceEndpoint"]}/all";
+            _logger.LogInformation("Fetching items from ItemService: {Url}", url);
 
             try
             {
-                string responseContent = await response.Content.ReadAsStringAsync();
-                var items = JsonSerializer.Deserialize<List<Item>>(responseContent);
-                if (items == null || !items.Any())
-                {
-                    _logger.LogInformation("No auctionable items found.");
-                    return new List<Item>();
-                }
+                var response = await client.GetAsync(url);
+                response.EnsureSuccessStatusCode();
 
-                _logger.LogInformation("{Count} auctionable items found.", items.Count);
-                return items;
+                var responseContent = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<List<Item>>(responseContent) ?? new List<Item>();
             }
-            catch (JsonException ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to deserialize ItemService response.");
+                _logger.LogError(ex, "Failed to fetch items from ItemService.");
                 return new List<Item>();
             }
         }
 
-
-        // Save auctionable items to the database
-        private async Task SaveAuctionableItemsToDatabase(List<Item> items)
+        /// <summary>
+        /// Intern metode til at oprette en ny auktion for et item.
+        /// </summary>
+        private async Task AddAuctionItem(Item item)
         {
-            foreach (var item in items)
+            var startTime = DateTimeOffset.UtcNow.Date.AddHours(8); // Næste dag kl. 08:00
+            var endTime = startTime.AddHours(8); // Slutter kl. 16:00
+
+            var auction = new Auction
             {
-                // Tjek om item allerede findes i databasen
-                var exists = await _auctionDbRepository.ItemExists(item.Id);
-                if (!exists)
-                {
-                    await _auctionDbRepository.AddAuctionItem(item);
-                    _logger.LogInformation("Added item {ItemId} to AuctionDatabase.", item.Id);
-                }
-            }
+                ItemId = item.Id!,
+                StartAuctionDateTime = startTime,
+                EndAuctionDateTime = endTime,
+                CurrentBid = 0,
+                CurrentWinnerId = "",
+                Bids = new List<BidElement>()
+            };
+
+            await _auctionDbRepository.CreateAuction(auction);
+            _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
         }
-
-        // Fetch and save auctionable items
-        [HttpGet("auctionable")]
-        public async Task<IActionResult> FetchAndSaveAuctionableItems()
-        {
-            var items = await GetAuctionableItems();
-            if (items == null || !items.Any())
-            {
-                return Ok(new List<Item>()); // Returner tom liste
-            }
-
-            await SaveAuctionableItemsToDatabase(items);
-            return Ok(items);
-        }
-
-
-
     }
 }
