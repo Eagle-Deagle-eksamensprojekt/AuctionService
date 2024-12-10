@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using AuctionServiceAPI.Models;
 using Services; // For the IAuctionDbRepository interface
 using System.Text.Json;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace AuctionServiceAPI.Controllers
 {
@@ -182,5 +184,46 @@ namespace AuctionServiceAPI.Controllers
                 return StatusCode(500, "An error occurred while checking the item.");
             }
         }
+/*
+        private Task ConsumeRabbitMQ(string auctionId)
+        {
+            var rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+
+            var factory = new ConnectionFactory { HostName = rabbitHost };
+            using var connection = factory.CreateConnection();
+            using var channel = connection.CreateModel();
+
+            var queueName = $"{auctionId}Queue";
+            channel.QueueDeclare(
+                queue: queueName,
+                durable: false,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null
+            );
+
+            var consumer = new EventingBasicConsumer(channel);
+            consumer.Received += (model, ea) =>
+            {
+                var body = ea.Body.ToArray();
+                var message = Encoding.UTF8.GetString(body);
+                var bid = JsonSerializer.Deserialize<Bid>(message);
+
+                _logger.LogInformation("Received bid {BidId} for auction {AuctionId}.", bid?.Id, auctionId);
+
+                // Process bid logic here
+            };
+
+            channel.BasicConsume(
+                queue: queueName,
+                autoAck: true,
+                consumer: consumer
+            );
+
+            _logger.LogInformation("Listening for bids on RabbitMQ queue {QueueName}.", queueName);
+
+            return Task.CompletedTask;
+        }
+*/
     }
 }
