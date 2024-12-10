@@ -5,6 +5,7 @@ using Services; // For the IAuctionDbRepository interface
 using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AuctionServiceAPI.Controllers
 {
@@ -16,28 +17,48 @@ namespace AuctionServiceAPI.Controllers
         private readonly IAuctionDbRepository _auctionDbRepository;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _config;
+        private readonly IMemoryCache _memoryCache;
+
 
         public AuctionController(
             ILogger<AuctionController> logger,
             IAuctionDbRepository auctionDbRepository,
             IHttpClientFactory httpClientFactory,
-            IConfiguration config)
+            IConfiguration config,
+            IMemoryCache memoryCache)
         {
             _logger = logger;
             _auctionDbRepository = auctionDbRepository;
             _httpClientFactory = httpClientFactory;
             _config = config;
+            _memoryCache = memoryCache;
+
         }
 
         /// <summary>
         /// Hent alle auktioner.
         /// </summary>
+        // Hent alle auktioner og cache resultatet
         [HttpGet("all")]
         public async Task<IActionResult> GetAllAuctions()
         {
-            var auctions = await _auctionDbRepository.GetAllAuctions();
+            if (!_memoryCache.TryGetValue("all_auctions", out List<Auction> auctions)) // Hvis data ikke er i cachen
+            {
+                // Hent auktioner fra databasen og konverter til List<Auction>
+                auctions = (await _auctionDbRepository.GetAllAuctions()).ToList();
+
+                // Cache dataen i 30 minutter
+                _memoryCache.Set("all_auctions", auctions, TimeSpan.FromMinutes(30));
+                _logger.LogInformation("Auktioner hentet fra databasen og gemt i cache.");
+            }
+            else
+            {
+                _logger.LogInformation("Auktioner hentet fra cache.");
+            }
+
             return Ok(auctions);
         }
+
 
         /// <summary>
         /// Hent en specifik auktion ved ID.
@@ -45,13 +66,26 @@ namespace AuctionServiceAPI.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAuctionById(string id)
         {
-            var auction = await _auctionDbRepository.GetAuctionById(id);
+            if (!_memoryCache.TryGetValue(id, out Auction auction)) // Hvis auktionen ikke er i cachen
+            {
+                // Hent auktionen fra databasen
+                auction = await _auctionDbRepository.GetAuctionById(id);
 
-            if (auction == null)
-                return NotFound($"Auction with ID {id} not found.");
+                if (auction == null)
+                    return NotFound($"Auction with ID {id} not found.");
+
+                // Cache auktionen i 30 minutter
+                _memoryCache.Set(id, auction, TimeSpan.FromMinutes(30));
+                _logger.LogInformation($"Auktion med ID {id} hentet fra databasen og gemt i cache.");
+            }
+            else
+            {
+                _logger.LogInformation($"Auktion med ID {id} hentet fra cache.");
+            }
 
             return Ok(auction);
         }
+
 
         /// <summary>
         /// Hent items fra ItemService og gem de 3 ældste i databasen som auktioner.

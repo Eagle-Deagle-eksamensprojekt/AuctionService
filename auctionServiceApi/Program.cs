@@ -15,8 +15,7 @@ logger.Debug("init main"); // NLog setup
 // Register Auction MongoDB repository (similar to UserMongoDBService)
 builder.Services.AddSingleton<IAuctionDbRepository, AuctionMongoDBService>(); // Register MongoDB repository for AuctionService
 
-builder.Services.AddHostedService<RabbitMqListener>();  // Register RabbitMQ listener service
-
+builder.Services.AddMemoryCache(); 
 
 // Register other services
 builder.Services.AddControllers();
