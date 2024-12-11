@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using AuctionServiceAPI.Models; // Antager, at Auction-modellen findes her
+using AuctionServiceAPI.Models;
+using Microsoft.AspNetCore.Mvc; // Antager, at Auction-modellen findes her
 
 namespace Services
 {
@@ -14,7 +15,6 @@ namespace Services
         Task<Auction> GetAuctionByItemId(string itemId);
         Task<bool> ItemExists(string itemId);
         Task AddAuctionItem(Item item);
-        Task<bool> CheckItemIsAuctionable(string itemId, DateTime currentDateTime); // Check om et item er klar til auktion
 
 
         
