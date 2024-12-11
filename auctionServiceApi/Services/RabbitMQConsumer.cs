@@ -10,7 +10,7 @@ public class RabbitMQListener : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Implement the logic to run in the background service
-        while (!stoppingToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested) 
         {
             await Task.Delay(1000, stoppingToken); // Example delay
         }
@@ -59,7 +59,7 @@ public class RabbitMQListener : BackgroundService
         }
     }
 
-    private async Task ListenOnQueue(string itemId, CancellationToken token, DateTimeOffset endAuctionTime)
+    public async Task ListenOnQueue(string itemId, CancellationToken token, DateTimeOffset endAuctionTime)
     {
         var queueName = $"{itemId}Queue";
         _channel.QueueDeclare(queue: queueName, durable: false, exclusive: false, autoDelete: false, arguments: null);

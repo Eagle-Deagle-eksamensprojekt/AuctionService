@@ -17,6 +17,12 @@ builder.Services.AddSingleton<IAuctionDbRepository, AuctionMongoDBService>(); //
 
 builder.Services.AddSingleton<RabbitMQListener>(); // Register RabbitMQ listener as a singleton
 
+// Add AuctionScheduler as a background service
+builder.Services.AddSingleton<AuctionScheduler>();
+//builder.Services.AddHostedService(provider => provider.GetRequiredService<AuctionScheduler>());
+builder.Services.AddSingleton<AuctionService>();
+
+
 builder.Services.AddMemoryCache(); 
 
 
@@ -50,7 +56,6 @@ foreach (var auction in activeAuctions)
         rabbitListener.StartListening(auction.ItemId, auction.EndAuctionDateTime);
     }
 }
-
 
 
 // Configure the HTTP request pipeline.

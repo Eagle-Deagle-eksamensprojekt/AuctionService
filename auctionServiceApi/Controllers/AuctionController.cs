@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using AuctionServiceAPI.Models;
-using Services; // For the IAuctionDbRepository interface
+using Services; // 
 using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Microsoft.Extensions.Caching.Memory;
+using System.Diagnostics;
 
 namespace AuctionServiceAPI.Controllers
 {
@@ -19,6 +20,7 @@ namespace AuctionServiceAPI.Controllers
         private readonly IConfiguration _config;
         private readonly IMemoryCache _memoryCache;
         private readonly RabbitMQListener _rabbitListener;
+        private readonly AuctionService _auctionService;
 
 
         public AuctionController(
@@ -27,6 +29,7 @@ namespace AuctionServiceAPI.Controllers
             IHttpClientFactory httpClientFactory,
             IMemoryCache memoryCache,
             IConfiguration config,
+            AuctionService auctionService,
             RabbitMQListener rabbitListener)
             
         {
@@ -35,9 +38,9 @@ namespace AuctionServiceAPI.Controllers
             _httpClientFactory = httpClientFactory;
             _memoryCache = memoryCache;
             _config = config;
+            _auctionService = auctionService;
             _rabbitListener = rabbitListener;
         }
-
 
         /// <summary>
         /// Hent alle auktioner.
@@ -91,7 +94,6 @@ namespace AuctionServiceAPI.Controllers
             return Ok(auction);
         }
 
-
         /// <summary>
         /// Hent items fra ItemService og gem de 3 ældste i databasen som auktioner.
         /// </summary>
@@ -100,7 +102,7 @@ namespace AuctionServiceAPI.Controllers
         {
             try
             {
-                var auctionableItems = await GetAndSaveAuctionableItems();
+                var auctionableItems = await _auctionService.GetAndSaveAuctionableItems();
                 if (auctionableItems == null || !auctionableItems.Any())
                     return Ok("No auctionable items were found or saved.");
 
@@ -112,89 +114,6 @@ namespace AuctionServiceAPI.Controllers
                 return StatusCode(500, "An error occurred while processing the request.");
             }
         }
-
-        /// <summary>
-        /// Intern metode til at hente og gemme auktioner.
-        /// </summary>
-        private async Task<List<Item>> GetAndSaveAuctionableItems()
-        {
-            // Hent items fra ItemService
-            var items = await GetItemsFromItemService();
-            if (items == null || !items.Any())
-                return new List<Item>();
-
-            // Sorter items efter oprettelsesdato (ældste først)
-            var sortedItems = items.OrderBy(i => i.CreatedDate).ToList();
-
-            // Find de 3 ældste, der ikke allerede er i databasen
-            var auctionableItems = new List<Item>();
-            foreach (var item in sortedItems)
-            {
-                var exists = await _auctionDbRepository.ItemExists(item.Id!);
-                if (!exists)
-                {
-                    
-                    auctionableItems.Add(item);
-                    if (auctionableItems.Count == 3)
-                        break;
-                }
-            }
-
-            // Opret auktioner for de fundne items
-            foreach (var item in auctionableItems)
-            {
-                await AddAuctionItem(item);
-            }
-
-            return auctionableItems;
-        }
-
-        /// <summary>
-        /// Intern metode til at hente items fra ItemService.
-        /// </summary>
-        private async Task<List<Item>> GetItemsFromItemService()
-        {
-            var client = _httpClientFactory.CreateClient();
-            var url = $"{_config["ItemServiceEndpoint"]}/all";
-            _logger.LogInformation("Fetching items from ItemService: {Url}", url);
-
-            try
-            {
-                var response = await client.GetAsync(url);
-                response.EnsureSuccessStatusCode();
-
-                var responseContent = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<List<Item>>(responseContent) ?? new List<Item>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to fetch items from ItemService.");
-                return new List<Item>();
-            }
-        }
-
-        /// <summary>
-        /// Intern metode til at oprette en ny auktion for et item.
-        /// </summary>
-        private async Task AddAuctionItem(Item item)
-        {
-            var startTime = DateTimeOffset.UtcNow.Date.AddHours(8); // Næste dag kl. 08:00
-            var endTime = startTime.AddHours(24); // Slutter kl. 8:00 næste dag
-
-            var auction = new Auction
-            {
-                ItemId = item.Id!,
-                StartAuctionDateTime = startTime,
-                EndAuctionDateTime = endTime,
-                CurrentBid = 0,
-                CurrentWinnerId = "",
-                Bids = new List<BidElement>()
-            };
-
-            await _auctionDbRepository.CreateAuction(auction);
-            _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
-        }
-
 
         /// <summary>
         /// Bid service skal validere om et bud er gyldigt inden den poste til RabbitMQ
@@ -276,6 +195,11 @@ namespace AuctionServiceAPI.Controllers
             return Ok("Cache cleared.");
         }
 
+        /// <summary>
+        /// Til manuel start af auktionsservice listener
+        /// </summary>
+        /// <param name="itemId"></param>
+        /// <returns></returns>
         [HttpPost("start-auction")]
         public async Task<IActionResult> StartAuction(string itemId)
         {
@@ -294,6 +218,11 @@ namespace AuctionServiceAPI.Controllers
             return Ok($"Started listening for auction on item {itemId}.");
         }
 
+        /// <summary>
+        /// Til manuel stop af auktionsservice listener
+        /// </summary>
+        /// <param name="itemId"></param>
+        /// <returns></returns>
         [HttpPost("stop-auction")]
         public IActionResult StopAuction(string itemId)
         {
