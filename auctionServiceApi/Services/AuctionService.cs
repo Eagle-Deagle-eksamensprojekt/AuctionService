@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using AuctionServiceAPI.Models;
 
@@ -103,6 +104,20 @@ namespace Services
 
             await _auctionDbRepository.CreateAuction(auction);
             _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
+        }
+
+        public void ReloadNginx()
+        {
+            var process = new ProcessStartInfo
+            {
+                FileName = "docker",
+                Arguments = "exec nginx nginx -s reload",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            var result = Process.Start(process);
+            _logger.LogInformation("NGINX configuration reloaded. Output: {0}", result?.StandardOutput.ReadToEnd());
         }
     }
 }

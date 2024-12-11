@@ -106,6 +106,7 @@ namespace AuctionServiceAPI.Controllers
                 if (auctionableItems == null || !auctionableItems.Any())
                     return Ok("No auctionable items were found or saved.");
 
+                _auctionService.ReloadNginx();
                 return Ok(auctionableItems);
             }
             catch (Exception ex)
@@ -146,47 +147,7 @@ namespace AuctionServiceAPI.Controllers
                 return StatusCode(500, "An error occurred while checking the item.");
             }
         }
-/*
-        private Task ConsumeRabbitMQ(string auctionId)
-        {
-            var rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
 
-            var factory = new ConnectionFactory { HostName = rabbitHost };
-            using var connection = factory.CreateConnection();
-            using var channel = connection.CreateModel();
-
-            var queueName = $"{auctionId}Queue";
-            channel.QueueDeclare(
-                queue: queueName,
-                durable: false,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null
-            );
-
-            var consumer = new EventingBasicConsumer(channel);
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                var bid = JsonSerializer.Deserialize<Bid>(message);
-
-                _logger.LogInformation("Received bid {BidId} for auction {AuctionId}.", bid?.Id, auctionId);
-
-                // Process bid logic here
-            };
-
-            channel.BasicConsume(
-                queue: queueName,
-                autoAck: true,
-                consumer: consumer
-            );
-
-            _logger.LogInformation("Listening for bids on RabbitMQ queue {QueueName}.", queueName);
-
-            return Task.CompletedTask;
-        }
-*/
         [HttpPost("clear-cache")]
         public IActionResult ClearCache()
         {
@@ -230,5 +191,44 @@ namespace AuctionServiceAPI.Controllers
             return Ok($"Stopped listening for auction on item {itemId}.");
         }
 
+        [HttpPost("start-bid-service/{itemId}")]
+        public IActionResult StartBidService(string itemId)
+        {
+            try
+            {
+                var process = new ProcessStartInfo
+                {
+                    FileName = "docker",
+                    Arguments = $"run --rm -d --name bidservice_{itemId} -e ITEM_ID={itemId} -e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} -e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} mikkelhv/4sembidservice:latest",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                var result = Process.Start(process);
+                _logger.LogInformation($"Started BidService for item {itemId}. Output: {result?.StandardOutput.ReadToEnd()}");
+
+                // Optional: Trigger NGINX reload (if dynamic routing is used)
+                _auctionService.ReloadNginx();
+
+                return Ok($"BidService for item {itemId} started.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start BidService.");
+                return StatusCode(500, "Failed to start BidService.");
+            }
+        }
+
+        [HttpGet("bid/{itemId}")]
+        public async Task<IActionResult> GetBidsForItem(string itemId)
+        {
+            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+            if (auction == null)
+            {
+                return NotFound("Auction not found for the specified item.");
+            }
+
+            return Ok(auction.Bids);
+        }
     }
-}
+} 

@@ -59,7 +59,7 @@ public class AuctionScheduler : BackgroundService
                     {
                         _logger.LogInformation("Starting auction for item {ItemId}", item.Id);
                         StartBidServiceForItem(item.Id!); // Start en BidService for hver item
-                        await StartAuctionService(item.Id!); // Start auktionen
+                        await StartAuctionService(item.Id!); // Start auktionen lytter
                     }
                 }
 
@@ -97,15 +97,18 @@ public class AuctionScheduler : BackgroundService
         private void StartBidServiceForItem(string itemId)
         {
             var process = new ProcessStartInfo
-            {
-                FileName = "docker",
-                Arguments = $"run --rm -d --name bidservice_{itemId} -e ITEM_ID={itemId} bidservice:latest",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+                {
+                    FileName = "docker",
+                    Arguments = $"run --rm -d --name bidservice_{itemId} -e ITEM_ID={itemId} -e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} -e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} mikkelhv/4sembidservice:latest",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
 
-            var processResult = Process.Start(process);
-            _logger.LogInformation($"Started BidService for item {itemId}. Output: {processResult?.StandardOutput.ReadToEnd()}");
+                var result = Process.Start(process);
+                _logger.LogInformation($"Started BidService for item {itemId}. Output: {result?.StandardOutput.ReadToEnd()}");
+
+                // Optional: Trigger NGINX reload (if dynamic routing is used)
+                _auctionService.ReloadNginx();
         }
 
         private void StopBidServicesForTheDay()
@@ -123,4 +126,7 @@ public class AuctionScheduler : BackgroundService
 
             //_rabbitListener.StopAllListeners();
         }
+
+        
+
 }
