@@ -233,7 +233,9 @@ namespace AuctionServiceAPI.Controllers
                                 $"--network {networkName} " + // Specificer netværket
                                 "mikkelhv/4sembidservice:latest",
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true
+                    RedirectStandardError = true,
+                    WorkingDirectory = "/"
+
                 };
 
                 // Start process
