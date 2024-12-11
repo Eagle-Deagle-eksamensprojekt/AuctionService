@@ -2,9 +2,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /app
 
-# Installer Docker CLI skal bruges til at oprette bidServices
-RUN apk update && apk add --no-cache docker-cli
-
 # Kopiér .csproj filen og gendan afhængigheder
 COPY *.csproj ./
 RUN dotnet restore
@@ -16,6 +13,9 @@ RUN dotnet publish -c Release -o /app/published-app
 # Brug en runtime image til at køre applikationen
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS runtime
 WORKDIR /app
+
+# Installer Docker CLI skal bruges til at oprette bidServices
+RUN apk update && apk add --no-cache docker-cli
 
 # Kopiér de publicerede filer fra build step
 COPY --from=build /app/published-app /app
