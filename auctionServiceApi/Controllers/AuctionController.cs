@@ -220,6 +220,7 @@ namespace AuctionServiceAPI.Controllers
             {
                 // Docker netværk
                 var networkName = "gron-network";
+                var AuctionServiceEndpoint = _config["AuctionServiceEndpoint"];
 
                 // Tildel en unik port baseret på itemId's hash (simpelt eksempel)
                 var port = 5000 + Math.Abs(itemId.GetHashCode() % 1000); // Generer port mellem 5000 og 5999
@@ -231,7 +232,7 @@ namespace AuctionServiceAPI.Controllers
                                 $"-p {port}:8080 " + // Map værtsmaskinens {port} til containerens 8080
                                 $"-e ITEM_ID={itemId} " +
                                 $"-e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} " +
-                                $"-e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} " +
+                                $"-e AuctionServiceEndpoint={AuctionServiceEndpoint} " +
                                 $"-e LOKI_URL={Environment.GetEnvironmentVariable("LOKI_URL")} " +
                                 $"--network {networkName} " +
                                 "mikkelhv/4sembidservice:latest",
