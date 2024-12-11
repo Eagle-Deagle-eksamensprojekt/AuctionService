@@ -49,7 +49,7 @@ public class AuctionScheduler : BackgroundService
             {
                 var now = DateTime.UtcNow;
 
-                if (now.Hour == 7 && now.Minute == 0) // Planlægning kl. 07:00
+                if (now.Hour == 1 && now.Minute == 13) // Planlægning kl. 07:00
                 {
                     _logger.LogInformation("Scheduling auctions for the day...");
 
