@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
-using AuctionServiceAPI.Models; // For at referere til Auction modellen
+using AuctionServiceAPI.Models;
+using Microsoft.AspNetCore.Mvc; // For at referere til Auction modellen
 
 namespace Services
 {
@@ -118,22 +119,6 @@ namespace Services
 
             await CreateAuction(auction);
             _logger.LogInformation("Auction created for item {ItemId}", item.Id);
-        }
-
-        public async Task<bool> CheckItemIsAuctionable(string itemId, DateTime currentDateTime)
-        {
-            var auction = await GetAuctionByItemId(itemId);
-            _logger.LogInformation("Start: {Start}, End: {End}, Bid: {Bid}", auction.StartAuctionDateTime, auction.EndAuctionDateTime, currentDateTime);
-
-            if (auction == null)
-            {
-                _logger.LogInformation("No auction found for item {ItemId}", itemId);
-                return false;
-            }
-
-            var isAuctionable = auction.StartAuctionDateTime <= currentDateTime && auction.EndAuctionDateTime >= currentDateTime;
-            _logger.LogInformation("Auctionable status for item {ItemId}: {IsAuctionable}", itemId, isAuctionable);
-            return isAuctionable;
         }
     }
 }

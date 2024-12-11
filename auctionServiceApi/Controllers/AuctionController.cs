@@ -120,32 +120,47 @@ namespace AuctionServiceAPI.Controllers
         /// </summary>
         // Tjekker om item er true, hvis den er auctionable
         [HttpGet("auctionable/{itemId}")]
-        public async Task<IActionResult> CheckItemIsAuctionable(string itemId, [FromQuery] string dateTime)
+        public async Task<IActionResult> CheckItemIsAuctionable(string itemId)
         {
-
+            // Validering af itemId
             if (string.IsNullOrWhiteSpace(itemId))
             {
                 return BadRequest("Item ID is required.");
             }
 
-            if (!DateTimeOffset.TryParse(dateTime, out var parsedDateTime)) // Tjekker om DateTime er gyldig
-            {
-                return BadRequest("Invalid DateTime format."); // Returnerer bad request hvis DateTime ikke er gyldig
-            }
-
             try
             {
-                _logger.LogInformation("Checking if item {ItemId} is auctionable at {DateTime}.", itemId, parsedDateTime);
-                var isAuctionable = await _auctionDbRepository.CheckItemIsAuctionable(itemId, parsedDateTime.UtcDateTime);
-                _logger.LogInformation("Item {ItemId} is auctionable: {IsAuctionable}", itemId, isAuctionable);
-                return Ok(isAuctionable);
+                _logger.LogInformation("Checking if item {ItemId} is auctionable.", itemId);
+
+                // Hent auktion baseret på itemId
+                var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+
+                if (auction == null)
+                {
+                    _logger.LogWarning("No auction found for item {ItemId}.", itemId);
+                    return NotFound(new { Message = $"No auction found for item {itemId}" });
+                }
+
+                // Returner start- og sluttidspunkter som JSON
+                var result = new
+                {
+                    StartAuctionDateTime = auction.StartAuctionDateTime.ToUniversalTime(),
+                    EndAuctionDateTime = auction.EndAuctionDateTime.ToUniversalTime()
+                };
+
+                _logger.LogInformation("Item {ItemId} auction details: Start: {Start}, End: {End}.",
+                    itemId, result.StartAuctionDateTime, result.EndAuctionDateTime);
+
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking if item is auctionable.");
-                return StatusCode(500, "An error occurred while checking the item.");
+                _logger.LogError(ex, "Error checking if item {ItemId} is auctionable.", itemId);
+                return StatusCode(500, new { Message = "An error occurred while checking the item.", Error = ex.Message });
             }
         }
+
+
 /*
         private Task ConsumeRabbitMQ(string auctionId)
         {
