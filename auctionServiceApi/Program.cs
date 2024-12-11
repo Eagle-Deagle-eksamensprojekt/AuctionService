@@ -46,16 +46,7 @@ var app = builder.Build();
 /// <summary>
 /// 
 var rabbitListener = app.Services.GetRequiredService<RabbitMQListener>();
-var auctionRepo = app.Services.GetRequiredService<IAuctionDbRepository>();
 
-var activeAuctions = await auctionRepo.GetAllAuctions();
-foreach (var auction in activeAuctions)
-{
-    if (DateTimeOffset.UtcNow < auction.EndAuctionDateTime)
-    {
-        rabbitListener.StartListening(auction.ItemId, auction.EndAuctionDateTime);
-    }
-}
 
 
 // Configure the HTTP request pipeline.
