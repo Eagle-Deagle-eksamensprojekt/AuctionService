@@ -96,16 +96,35 @@ public class AuctionScheduler : BackgroundService
 
         private void StartBidServiceForItem(string itemId)
         {
-            var process = new ProcessStartInfo
+            // Docker netværk
+                var networkName = "gron-network";
+
+                // Docker process start
+                var process = new ProcessStartInfo
                 {
                     FileName = "docker",
-                    Arguments = $"run --rm -d --name bidservice_{itemId} -e ITEM_ID={itemId} -e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} -e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} mikkelhv/4sembidservice:latest",
+                    Arguments = $"run --rm -d --name bidservice_{itemId} " +
+                                $"-e ITEM_ID={itemId} " +
+                                $"-e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} " +
+                                $"-e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} " +
+                                $"-e LOKI_URL={Environment.GetEnvironmentVariable("LOKI_URL")} " +
+                                $"--network {networkName} " + // Specificer netværket
+                                "mikkelhv/4sembidservice:latest",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
 
+                // Start process
                 var result = Process.Start(process);
-                _logger.LogInformation($"Started BidService for item {itemId}. Output: {result?.StandardOutput.ReadToEnd()}");
+                var output = result?.StandardOutput.ReadToEnd();
+                var error = result?.StandardError.ReadToEnd();
+               
+                if (!string.IsNullOrEmpty(error))
+                {
+                    _logger.LogError($"Error starting BidService for item {itemId}: {error}");
+                }
+
+                _logger.LogInformation($"Started BidService for item {itemId}. Output: {output}");
 
                 // Optional: Trigger NGINX reload (if dynamic routing is used)
                 _auctionService.ReloadNginx();

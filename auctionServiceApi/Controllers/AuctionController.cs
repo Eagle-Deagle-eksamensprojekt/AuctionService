@@ -196,16 +196,36 @@ namespace AuctionServiceAPI.Controllers
         {
             try
             {
+                // Docker netværk
+                var networkName = "gron-network";
+
+                // Docker process start
                 var process = new ProcessStartInfo
                 {
                     FileName = "docker",
-                    Arguments = $"run --rm -d --name bidservice_{itemId} -e ITEM_ID={itemId} -e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} -e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} mikkelhv/4sembidservice:latest",
+                    Arguments = $"run --rm -d --name bidservice_{itemId} " +
+                                $"-e ITEM_ID={itemId} " +
+                                $"-e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} " +
+                                $"-e AuctionServiceEndpoint={Environment.GetEnvironmentVariable("AuctionServiceEndpoint")} " +
+                                $"-e LOKI_URL={Environment.GetEnvironmentVariable("LOKI_URL")} " +
+                                $"--network {networkName} " + // Specificer netværket
+                                "mikkelhv/4sembidservice:latest",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
 
+                // Start process
                 var result = Process.Start(process);
-                _logger.LogInformation($"Started BidService for item {itemId}. Output: {result?.StandardOutput.ReadToEnd()}");
+                var output = result?.StandardOutput.ReadToEnd();
+                var error = result?.StandardError.ReadToEnd();
+
+                if (!string.IsNullOrEmpty(error))
+                {
+                    _logger.LogError($"Error starting BidService for item {itemId}: {error}");
+                    return StatusCode(500, $"Failed to start BidService for item {itemId}. Error: {error}");
+                }
+
+                _logger.LogInformation($"Started BidService for item {itemId}. Output: {output}");
 
                 // Optional: Trigger NGINX reload (if dynamic routing is used)
                 _auctionService.ReloadNginx();
@@ -218,6 +238,7 @@ namespace AuctionServiceAPI.Controllers
                 return StatusCode(500, "Failed to start BidService.");
             }
         }
+
 
         [HttpGet("bid/{itemId}")]
         public async Task<IActionResult> GetBidsForItem(string itemId)
