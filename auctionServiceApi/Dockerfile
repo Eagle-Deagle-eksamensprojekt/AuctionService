@@ -2,6 +2,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /app
 
+# Installer Docker CLI skal bruges til at oprette bidServices
+RUN apt-get update && apt-get install -y docker.io
+
 # Kopiér .csproj filen og gendan afhængigheder
 COPY *.csproj ./
 RUN dotnet restore
