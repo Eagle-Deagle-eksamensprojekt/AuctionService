@@ -220,10 +220,12 @@ namespace AuctionServiceAPI.Controllers
             {
                 // Docker netværk
                 var networkName = "gron-network";
-                var AuctionServiceEndpoint = _config["AuctionServiceEndpoint"];
+                //var AuctionServiceEndpoint = _config["AuctionServiceEndpoint"];
+                var AuctionServiceEndpoint = "http://auctionService:8080/auction";
 
                 // Tildel en unik port baseret på itemId's hash (simpelt eksempel)
-                var port = 5000 + Math.Abs(itemId.GetHashCode() % 1000); // Generer port mellem 5000 og 5999
+                //Tilføj i controller, at der skal der skal løbes porte igennem for at finde ud af hvilken port bidService bruger
+                var port = 5010 + Math.Abs(itemId.GetHashCode() % 1000); // Generer port mellem 5000 og 5999
 
                 var process = new ProcessStartInfo
                 {
