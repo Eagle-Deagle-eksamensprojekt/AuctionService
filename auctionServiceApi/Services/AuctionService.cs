@@ -1,5 +1,7 @@
+using System.Text;
 using System.Text.Json;
 using AuctionServiceAPI.Models;
+using RabbitMQ.Client;
 
 
 namespace Services
@@ -101,8 +103,78 @@ namespace Services
                 Bids = new List<BidElement>()
             };
 
-            await _auctionDbRepository.CreateAuction(auction);
-            _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
+            try
+            {
+                // Opret auktion i databasen
+                await _auctionDbRepository.CreateAuction(auction);
+                _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
+
+                // Publiser auktionen til RabbitMQ
+                var publishSuccess = await PublishAuctionToRabbitMQ(item);
+                if (!publishSuccess)
+                {
+                    _logger.LogWarning("Failed to publish auction for item {ItemId} to RabbitMQ.", item.Id);
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create auction for item {ItemId}.", item.Id);
+            }
         }
+
+        public async Task<bool> PublishAuctionToRabbitMQ(Item item)
+        {
+            var rabbitHost = _config["RABBITMQ_HOST"] ?? "localhost"; 
+
+            try
+            {
+                var factory = new ConnectionFactory
+                {
+                    HostName = rabbitHost,
+                    DispatchConsumersAsync = true
+                };
+
+                using var connection = factory.CreateConnection(); 
+                using var channel = connection.CreateModel();
+
+                // Queue name based on ItemId
+                var itemId = item.Id;
+                if (itemId == null)
+                {
+                    _logger.LogError("Failed to get ItemId from item.");
+                    return false;
+                }
+                var queueName = _config["TodaysAuctionsRabbitQueue"];
+
+                channel.QueueDeclare(
+                    queue: queueName,
+                    durable: false,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null
+                );
+
+                var message = JsonSerializer.Serialize(item);
+                var body = Encoding.UTF8.GetBytes(message);
+
+                channel.BasicPublish(
+                    exchange: "",
+                    routingKey: queueName,
+                    basicProperties: null,
+                    body: body
+                );
+
+                _logger.LogInformation("Published item {ItemId} to RabbitMQ queue {QueueName}.", item.Id, queueName);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to publish item {ItemId} to RabbitMQ.", item.Id);
+                return false;
+            }
+        }
+
+
     }
 }

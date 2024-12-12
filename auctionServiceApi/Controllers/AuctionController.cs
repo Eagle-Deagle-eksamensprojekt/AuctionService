@@ -7,6 +7,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Microsoft.Extensions.Caching.Memory;
 using System.Diagnostics;
+using System.Text;
 
 namespace AuctionServiceAPI.Controllers
 {
@@ -117,18 +118,26 @@ namespace AuctionServiceAPI.Controllers
         }
 
         /// <summary>
-        /// Hent items fra ItemService og gem de 3 ældste i databasen som auktioner.
+        /// Fetches and saves auctionable items, then publishes them to RabbitMQ.
         /// </summary>
         [HttpGet("fetch-and-save-auctionable")]
         public async Task<IActionResult> FetchAndSaveAuctionableItems()
         {
             try
             {
+                // Hent og gem auctionable items
                 var auctionableItems = await _auctionService.GetAndSaveAuctionableItems();
                 if (auctionableItems == null || !auctionableItems.Any())
+                {
+                    _logger.LogInformation("No auctionable items were found or saved.");
                     return Ok("No auctionable items were found or saved.");
+                }
 
-                return Ok(auctionableItems);
+                return Ok(new
+                {
+                    Message = "Successfully fetched, saved, and published auctionable items.",
+                    Items = auctionableItems
+                });
             }
             catch (Exception ex)
             {
@@ -136,6 +145,8 @@ namespace AuctionServiceAPI.Controllers
                 return StatusCode(500, "An error occurred while processing the request.");
             }
         }
+
+
 
         /// <summary>
         /// Bid service skal validere om et bud er gyldigt inden den poste til RabbitMQ
