@@ -95,32 +95,14 @@ public class AuctionScheduler : BackgroundService
         }
 
         private void StartBidServiceForItem(string itemId)
-        {
-            var process = new ProcessStartInfo
-            {
-                FileName = "docker",
-                Arguments = $"run --rm -d --name bidservice_{itemId} -e ITEM_ID={itemId} bidservice:latest",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-
-            var processResult = Process.Start(process);
-            _logger.LogInformation($"Started BidService for item {itemId}. Output: {processResult?.StandardOutput.ReadToEnd()}");
+        { // Den skal ikke fyre en process, den skal publish en ny besked til 1 fast defineret kø på rabbit
+            
         }
 
         private void StopBidServicesForTheDay()
         {
-            var process = new ProcessStartInfo
-            {
-                FileName = "docker",
-                Arguments = "ps -q --filter \"name=bid-service_\" | xargs docker stop",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-
-            var processResult = Process.Start(process);
-            _logger.LogInformation($"Stopped all BidServices. Output: {processResult?.StandardOutput.ReadToEnd()}");
-
+            // tror denne ikke skal bruges
+            
             //_rabbitListener.StopAllListeners();
         }
 }
