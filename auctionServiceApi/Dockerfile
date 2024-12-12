@@ -18,4 +18,4 @@ WORKDIR /app
 COPY --from=build /app/published-app /app
 
 # Kør applikationen
-ENTRYPOINT ["dotnet", "auctionServiceAPI.dll"]
+ENTRYPOINT ["dotnet", "auctionServiceApi.dll"]
