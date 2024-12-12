@@ -93,7 +93,9 @@ namespace Services
 
         public async Task<Auction> GetAuctionByItemId(string itemId)
         {
-            return await _auctionCollection.Find(a => a.ItemId == itemId).FirstOrDefaultAsync();
+            var result = await _auctionCollection.Find(a => a.ItemId == itemId).FirstOrDefaultAsync();
+            _logger.LogInformation("ItemId found in database{result}", result.ItemId);
+            return result;
         }
 
         public async Task<bool> ItemExists(string itemId)

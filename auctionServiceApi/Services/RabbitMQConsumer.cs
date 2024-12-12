@@ -3,6 +3,7 @@ using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using AuctionServiceAPI.Models;
+using Services;
 
 // Background service that listens for incoming bids on a RabbitMQ queue
 public class RabbitMQListener : BackgroundService
@@ -20,6 +21,8 @@ public class RabbitMQListener : BackgroundService
     private readonly IConnection _connection;
     private readonly IModel _channel;
     private readonly Dictionary<string, CancellationTokenSource> _activeListeners;
+    private readonly IAuctionDbRepository _auctionDbRepository;
+
 
     public RabbitMQListener(ILogger<RabbitMQListener> logger, IConfiguration config)
     {
@@ -87,11 +90,37 @@ public class RabbitMQListener : BackgroundService
         StopListening(itemId); // Automatisk stop, når auktionen slutter
     }
 
-    private void ProcessBid(Bid bid)
-    {
-        _logger.LogInformation($"Processing bid {bid.Id} for item {bid.ItemId}.");
-        // Implement logic for processing the bid
-    }
+        private async void ProcessBid(Bid bid)
+        {
+            _logger.LogInformation($"Processing bid {bid.Id} for item {bid.ItemId}.");
+
+            // Validate the bid (e.g., higher than current bid)
+            var auction = await _auctionDbRepository.GetAuctionByItemId(bid.ItemId);
+            if (auction == null)
+            {
+                _logger.LogWarning($"Auction for item {bid.ItemId} not found.");
+                return;
+            }
+
+            if (bid.Amount <= auction.CurrentBid)
+            {
+                _logger.LogWarning($"Bid {bid.Amount:C} is not higher than the current bid {auction.CurrentBid:C}.");
+                return;
+            }
+
+            // Update the auction with the new bid
+            auction.CurrentBid = bid.Amount;
+            var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
+            if (updated)
+            {
+                _logger.LogInformation($"Auction {auction.Id} updated with new bid: {bid.Amount:C}.");
+            }
+            else
+            {
+                _logger.LogError($"Failed to update auction {auction.Id} with new bid.");
+            }
+        }
+
 
     public override void Dispose()
     {

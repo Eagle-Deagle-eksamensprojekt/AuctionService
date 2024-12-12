@@ -18,7 +18,7 @@ namespace AuctionServiceAPI.Models
         /// The amount of the bid
         /// </summary>
         [JsonPropertyName("Amount")]
-        public decimal Amount { get; set; }
+        public double Amount { get; set; }
 
         /// <summary>
         /// The time when the bid was placed
