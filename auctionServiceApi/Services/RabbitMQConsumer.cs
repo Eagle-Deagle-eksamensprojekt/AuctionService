@@ -22,13 +22,16 @@ public class RabbitMQListener : BackgroundService
     private readonly IModel _channel;
     private readonly Dictionary<string, CancellationTokenSource> _activeListeners;
     private readonly IAuctionDbRepository _auctionDbRepository;
+    private readonly IConfiguration _config;
 
 
-    public RabbitMQListener(ILogger<RabbitMQListener> logger, IConfiguration config)
+    public RabbitMQListener(ILogger<RabbitMQListener> logger, IConfiguration config, IAuctionDbRepository auctionDbRepository)
     {
         _logger = logger;
+        _auctionDbRepository = auctionDbRepository;
+        _config = config;
 
-        var rabbitHost = config["RABBITMQ_HOST"] ?? "localhost";
+        var rabbitHost = _config["RABBITMQ_HOST"] ?? "localhost";
         var factory = new ConnectionFactory() { HostName = rabbitHost };
 
         _connection = factory.CreateConnection();
@@ -90,11 +93,10 @@ public class RabbitMQListener : BackgroundService
         StopListening(itemId); // Automatisk stop, når auktionen slutter
     }
 
-        private async void ProcessBid(Bid bid)
+        /*private async void ProcessBid(Bid bid)
         {
             _logger.LogInformation($"Processing bid {bid.Id} for item {bid.ItemId}.");
 
-            // Validate the bid (e.g., higher than current bid)
             var auction = await _auctionDbRepository.GetAuctionByItemId(bid.ItemId);
             if (auction == null)
             {
@@ -108,18 +110,67 @@ public class RabbitMQListener : BackgroundService
                 return;
             }
 
-            // Update the auction with the new bid
-            auction.CurrentBid = bid.Amount;
+            auction.Bids.Add(new BidElement
+            {
+                BidAmount = bid.Amount,
+                UserId = bid.UserId
+            });
+
             var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
             if (updated)
             {
-                _logger.LogInformation($"Auction {auction.Id} updated with new bid: {bid.Amount:C}.");
+                _logger.LogInformation($"Auction {auction.Id} updated with new bid: {bid.Amount:C}, Current Winner: {bid.UserId}.");
+            }
+            else
+            {
+                _logger.LogError($"Failed to update auction {auction.Id} with new bid.");
+            }
+        }*/
+        private async void ProcessBid(Bid bid)
+        {
+            _logger.LogInformation($"Processing bid {bid.Id} for item {bid.ItemId}.");
+
+            // Hent auktionen
+            var auction = await _auctionDbRepository.GetAuctionByItemId(bid.ItemId);
+
+            if (auction == null)
+            {
+                _logger.LogWarning($"Auction for item {bid.ItemId} not found.");
+                return; // Auktion ikke fundet, så vi afslutter metoden
+            }
+
+            // Sørg for, at Bids-listen er initialiseret
+            auction.Bids ??= new List<BidElement>();
+
+            // Tjek om det nye bud er højere end det nuværende
+            if (bid.Amount <= auction.CurrentBid)
+            {
+                _logger.LogWarning($"Bid {bid.Amount:C} is not higher than the current bid {auction.CurrentBid:C}.");
+                return; // Hvis buddet ikke er højere end det nuværende, afslut
+            }
+
+            // Tilføj det nye bud til Bids-listen
+            auction.Bids.Add(new BidElement
+            {
+                BidAmount = bid.Amount,
+                UserId = bid.UserId
+            });
+
+            // Opdater auktionen i databasen
+            var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
+            if (updated)
+            {
+                _logger.LogInformation($"Auction {auction.Id} updated with new bid: {bid.Amount:C}, Current Winner: {bid.UserId}.");
             }
             else
             {
                 _logger.LogError($"Failed to update auction {auction.Id} with new bid.");
             }
         }
+
+
+
+
 
 
     public override void Dispose()

@@ -236,5 +236,51 @@ namespace AuctionServiceAPI.Controllers
             return Ok($"Stopped listening for auction on item {itemId}.");
         }
 
+
+        [HttpPost("{itemId}")]
+        public async Task<IActionResult> PlaceBid(string itemId, [FromBody] Bid bid)
+        {
+            _logger.LogInformation($"Placing bid for item {itemId}. Amount: {bid.Amount}");
+
+            // Hent auktionen baseret på itemId
+            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+            if (auction == null)
+            {
+                _logger.LogWarning($"Auction for item {itemId} not found.");
+                return NotFound($"Auction for item {itemId} not found.");
+            }
+
+            // Tjek om buddet er højere end det nuværende højeste bud
+            if (bid.Amount <= auction.CurrentBid)
+            {
+                _logger.LogWarning($"Bid {bid.Amount} is not higher than current bid {auction.CurrentBid}.");
+                return BadRequest($"Bid is not higher than current bid {auction.CurrentBid}.");
+            }
+
+            // Opdater auktionen med det nye bud
+            auction.Bids.Add(new BidElement { BidAmount = bid.Amount, UserId = bid.UserId });
+
+            var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
+            if (updated)
+            {
+                _logger.LogInformation($"Auction {auction.Id} updated with new bid of {bid.Amount}.");
+                return Ok(auction);
+            }
+            else
+            {
+                _logger.LogError($"Failed to update auction {auction.Id}.");
+                return StatusCode(500, "Failed to update auction.");
+            }
+        }
+
+
+        [HttpPost("start-listener")]
+        public async Task<IActionResult> StartListener(string id)
+        {
+            // Trigger ScheduleAuctions method manually
+            await _auctionService.StartAuctionService(id);
+            return Ok("AuctionService listener started.");
+        }
     }
+    
 }

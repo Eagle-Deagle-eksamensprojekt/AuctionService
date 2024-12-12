@@ -18,7 +18,7 @@ builder.Services.AddSingleton<IAuctionDbRepository, AuctionMongoDBService>(); //
 builder.Services.AddSingleton<RabbitMQListener>(); // Register RabbitMQ listener as a singleton
 
 // Add AuctionScheduler as a background service
-builder.Services.AddSingleton<AuctionScheduler>();
+//builder.Services.AddSingleton<AuctionScheduler>();
 //builder.Services.AddHostedService(provider => provider.GetRequiredService<AuctionScheduler>());
 builder.Services.AddSingleton<AuctionService>();
 

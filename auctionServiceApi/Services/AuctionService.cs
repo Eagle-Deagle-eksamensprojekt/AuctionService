@@ -1,29 +1,114 @@
 using System.Text;
 using System.Text.Json;
 using AuctionServiceAPI.Models;
+using Microsoft.AspNetCore.Mvc;
 using RabbitMQ.Client;
+using Services;
+
 
 
 namespace Services
 {
-    public class AuctionService 
+    public class AuctionService : BackgroundService
     {
         private readonly IAuctionDbRepository _auctionDbRepository;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<AuctionService> _logger;
         private readonly IConfiguration _config;
+        private readonly RabbitMQListener _rabbitListener;
 
         public AuctionService(
             IAuctionDbRepository auctionDbRepository,
             IHttpClientFactory httpClientFactory,
             ILogger<AuctionService> logger,
+            RabbitMQListener rabbitListener,
             IConfiguration config)
         {
             _auctionDbRepository = auctionDbRepository;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
+            _rabbitListener = rabbitListener;
             _config = config;
         }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            _logger.LogInformation("AuctionScheduler started.");
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await ScheduleAuctions();
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred in AuctionScheduler.");
+            throw;
+        }
+    }
+
+        
+        /// <summary>
+        /// Opstartsmetode for at hente auktioner fra databasen og starte RabbitMQ listener.
+        /// </summary>
+        public async Task ScheduleAuctions()
+        {
+            while (true)
+            {
+                var now = DateTime.UtcNow;
+
+                if (now.Hour == 7 && now.Minute == 0) // Planlægning kl. 07:00
+                {
+                    _logger.LogInformation("Scheduling auctions for the day...");
+
+                    var items = await GetAndSaveAuctionableItems();
+
+                    foreach (var item in items)
+                    {
+                        _logger.LogInformation("Starting auction for item {ItemId}", item.Id);
+                        await StartAuctionService(item.Id!); // Start auktionen
+                    }
+                    // Start listeners for auktioner
+                    // Start auktioner
+                    
+                }
+
+                if (now.Hour == 18 && now.Minute == 0) // Luk ned kl. 18:00
+                {
+                    _logger.LogInformation("Shutting down auctions for the day...");
+                    // Stop alle listeners
+                    // Stop og marker auktioner som afsluttet
+                    // Send notifikationer til vindere
+                    // Gem salgspris til ItemService
+                }
+
+                await Task.Delay(TimeSpan.FromMinutes(1)); // Tjek hvert minut
+            }
+        }
+        
+        /// <summary>
+        /// Start af listener for auktionsservice baseret på itemId.
+        /// </summary>
+        /// <param name="itemId"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> StartAuctionService(string itemId)
+        {
+            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+            if (auction == null)
+            {
+                return new NotFoundObjectResult("Auction not found for the specified item.");
+            }
+
+            if (DateTimeOffset.UtcNow >= auction.EndAuctionDateTime)
+            {
+                return new BadRequestObjectResult("Cannot start listening for an auction that has already ended.");
+            }
+            await _rabbitListener.ListenOnQueue(itemId, CancellationToken.None, auction.EndAuctionDateTime); // Start listener for auktionen
+            return new OkObjectResult($"Started listening for auction on item {itemId}.");
+        }
+
 
         /// <summary>
         /// Intern metode til at hente og gemme auktioner.
@@ -98,9 +183,7 @@ namespace Services
                 ItemId = item.Id!,
                 StartAuctionDateTime = startTime,
                 EndAuctionDateTime = endTime,
-                CurrentBid = 0,
-                CurrentWinnerId = "",
-                Bids = new List<BidElement>()
+                Bids = new List<BidElement>(new BidElement[] { new BidElement { BidAmount = 0, UserId = "Starting Bid" } })
             };
 
             try

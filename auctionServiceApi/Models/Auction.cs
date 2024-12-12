@@ -25,11 +25,11 @@ namespace AuctionServiceAPI.Models
         [JsonPropertyName("bids")]
         public List<BidElement> Bids { get; set; }
 
-        /// <summary>
-        /// Reference to the item being auctioned
-        /// </summary>
-        [JsonPropertyName("currentWinnerId")]
-        public string CurrentWinnerId { get; set; }
+        [JsonIgnore] // Beregnede felter behøver ikke serialiseres
+        public double CurrentBid => Bids.LastOrDefault()?.BidAmount ?? 0;
+
+        [JsonIgnore]
+        public string CurrentWinnerId => Bids.LastOrDefault()?.UserId ?? string.Empty;                      
 
         /// <summary>
         /// The start date and time for the auction of this item.
@@ -44,30 +44,24 @@ namespace AuctionServiceAPI.Models
         public DateTimeOffset EndAuctionDateTime { get; set; }
 
         /// <summary>
-        /// The current highest bid on the auction
-        /// </summary>
-        [JsonPropertyName("currentBid")]
-        public double CurrentBid { get; set; }
-
-        /// <summary>
         /// The ID of the item being auctioned
         /// </summary>
         [JsonPropertyName("itemId")]
         public string ItemId { get; set; }
     }
 
-    public partial class BidElement
+    public class BidElement
     {
         /// <summary>
         /// Amount of the bid
         /// </summary>
         [JsonPropertyName("BidAmount")]
-        public double BidAmount { get; set; }
+        public double BidAmount { get; set; } = 0;
 
         /// <summary>
         /// The unique identifier for the user who placed the bid
         /// </summary>
         [JsonPropertyName("UserId")]
-        public string UserId { get; set; }
+        public string UserId { get; set; }  = string.Empty;
     }
 }
