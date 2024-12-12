@@ -21,6 +21,7 @@ namespace AuctionServiceAPI.Controllers
         private readonly IMemoryCache _memoryCache;
         private readonly RabbitMQListener _rabbitListener;
         private readonly AuctionService _auctionService;
+        private readonly AuctionScheduler _auctionScheduler;
 
 
         public AuctionController(
@@ -30,7 +31,9 @@ namespace AuctionServiceAPI.Controllers
             IMemoryCache memoryCache,
             IConfiguration config,
             AuctionService auctionService,
-            RabbitMQListener rabbitListener)
+            RabbitMQListener rabbitListener,
+            AuctionScheduler auctionScheduler
+            )
             
         {
             _logger = logger;
@@ -40,6 +43,7 @@ namespace AuctionServiceAPI.Controllers
             _config = config;
             _auctionService = auctionService;
             _rabbitListener = rabbitListener;
+            _auctionScheduler = auctionScheduler;
         }
         /// <summary>
         /// Hent version af Service
@@ -214,50 +218,12 @@ namespace AuctionServiceAPI.Controllers
         }
 
         [HttpPost("start-bid-service/{itemId}")]
-        public IActionResult StartBidService(string itemId)
+        public async Task<IActionResult> StartBidService(string itemId)
         {
             try
             {
-                // Docker netværk
-                var networkName = "gron-network";
-                //var AuctionServiceEndpoint = _config["AuctionServiceEndpoint"];
-                var AuctionServiceEndpoint = "http://auctionService:8080/auction";
-
-                // Tildel en unik port baseret på itemId's hash (simpelt eksempel)
-                //Tilføj i controller, at der skal der skal løbes porte igennem for at finde ud af hvilken port bidService bruger
-                var port = 5010 + Math.Abs(itemId.GetHashCode() % 1000); // Generer port mellem 5000 og 5999
-
-                var process = new ProcessStartInfo
-                {
-                    FileName = "docker",
-                    Arguments = $"run --rm -d --name bidservice_{itemId} " +
-                                $"-p {port}:8080 " + // Map værtsmaskinens {port} til containerens 8080
-                                $"-e ITEM_ID={itemId} " +
-                                $"-e RABBITMQ_HOST={Environment.GetEnvironmentVariable("RABBITMQ_HOST")} " +
-                                $"-e AuctionServiceEndpoint={AuctionServiceEndpoint} " +
-                                $"-e LOKI_URL={Environment.GetEnvironmentVariable("LOKI_URL")} " +
-                                $"--network {networkName} " +
-                                "mikkelhv/4sembidservice:latest",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-
-                // Start process
-                var result = Process.Start(process);
-                var output = result?.StandardOutput.ReadToEnd();
-                var error = result?.StandardError.ReadToEnd();
-
-                if (!string.IsNullOrEmpty(error))
-                {
-                    _logger.LogError($"Error starting BidService for item {itemId}: {error}");
-                    return StatusCode(500, $"Failed to start BidService for item {itemId}. Error: {error}");
-                }
-
-                _logger.LogInformation($"Started BidService for item {itemId}. Output: {output}");
-
-                // Optional: Trigger NGINX reload (if dynamic routing is used)
-                _auctionService.ReloadNginx();
-
+                _auctionScheduler.StartBidServiceForItem(itemId); // Start en BidService for item
+                
                 return Ok($"BidService for item {itemId} started.");
             }
             catch (Exception ex)
