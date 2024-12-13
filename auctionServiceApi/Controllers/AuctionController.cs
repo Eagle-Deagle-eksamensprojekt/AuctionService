@@ -72,7 +72,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpGet("all")]
         public async Task<IActionResult> GetAllAuctions()
         {
-            if (!_memoryCache.TryGetValue("all_auctions", out List<Auction> auctions)) // Hvis data ikke er i cachen
+            if (!_memoryCache.TryGetValue("all_auctions", out List<Auction>? auctions)) // Hvis data ikke er i cachen
             {
                 // Hent auktioner fra databasen og konverter til List<Auction>
                 auctions = (await _auctionDbRepository.GetAllAuctions()).ToList();
@@ -97,7 +97,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAuctionById(string id)
         {
-            if (!_memoryCache.TryGetValue(id, out Auction auction)) // Hvis auktionen ikke er i cachen
+            if (!_memoryCache.TryGetValue(id, out Auction? auction)) // Hvis auktionen ikke er i cachen
             {
                 // Hent auktionen fra databasen
                 auction = await _auctionDbRepository.GetAuctionById(id);
@@ -202,29 +202,6 @@ namespace AuctionServiceAPI.Controllers
         }
 
         /// <summary>
-        /// Til manuel start af auktionsservice listener
-        /// </summary>
-        /// <param name="itemId"></param>
-        /// <returns></returns>
-        [HttpPost("start-auction")]
-        public async Task<IActionResult> StartAuction(string itemId)
-        {
-            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
-            if (auction == null)
-            {
-                return NotFound("Auction not found for the specified item.");
-            }
-
-            if (DateTimeOffset.UtcNow >= auction.EndAuctionDateTime)
-            {
-                return BadRequest("Cannot start listening for an auction that has already ended.");
-            }
-
-            _rabbitListener.StartListening(itemId, auction.EndAuctionDateTime);
-            return Ok($"Started listening for auction on item {itemId}.");
-        }
-
-        /// <summary>
         /// Til manuel stop af auktionsservice listener
         /// </summary>
         /// <param name="itemId"></param>
@@ -258,9 +235,9 @@ namespace AuctionServiceAPI.Controllers
             }
 
             // Opdater auktionen med det nye bud
-            auction.Bids.Add(new BidElement { BidAmount = bid.Amount, UserId = bid.UserId });
+            auction.Bids?.Add(new BidElement { BidAmount = bid.Amount, UserId = bid.UserId!});
 
-            var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
+            var updated = await _auctionDbRepository.UpdateAuction(auction.Id!, auction);
             if (updated)
             {
                 _logger.LogInformation($"Auction {auction.Id} updated with new bid of {bid.Amount}.");
@@ -279,7 +256,7 @@ namespace AuctionServiceAPI.Controllers
         {
             // Trigger ScheduleAuctions method manually
             await _auctionService.StartAuctionService(id);
-            return Ok("AuctionService listener started.");
+            return Ok($"Started listening for auction on item {id}.");
         }
     }
     

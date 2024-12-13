@@ -88,6 +88,7 @@ namespace Services
             }
         }
         
+        
         /// <summary>
         /// Start af listener for auktionsservice baseret på itemId.
         /// </summary>
@@ -98,16 +99,19 @@ namespace Services
             var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
             if (auction == null)
             {
-                return new NotFoundObjectResult("Auction not found for the specified item.");
+                return new NotFoundObjectResult("Auction not found for the specified item.,");
             }
 
             if (DateTimeOffset.UtcNow >= auction.EndAuctionDateTime)
             {
                 return new BadRequestObjectResult("Cannot start listening for an auction that has already ended.");
             }
-            await _rabbitListener.ListenOnQueue(itemId, CancellationToken.None, auction.EndAuctionDateTime); // Start listener for auktionen
+            
+            var cancellationTokenSource = new CancellationTokenSource(1000); // 1000 ms timeout
+
+            await _rabbitListener.ListenOnQueue(itemId, cancellationTokenSource.Token, auction.EndAuctionDateTime); // Start listener for auktionen
             return new OkObjectResult($"Started listening for auction on item {itemId}.");
-        }
+        } 
 
 
         /// <summary>
@@ -175,36 +179,42 @@ namespace Services
         /// </summary>
         private async Task AddAuctionItem(Item item)
         {
-            var startTime = DateTimeOffset.UtcNow.Date.AddHours(8); // Næste dag kl. 08:00
-            var endTime = startTime.AddHours(24); // Slutter kl. 8:00 næste dag
+            var startTime = DateTimeOffset.UtcNow.Date.AddHours(7); // Næste dag kl. 07:00
+            var endTime = startTime.AddHours(18); // Slutter kl. 8:00 næste dag
 
             var auction = new Auction
             {
                 ItemId = item.Id!,
                 StartAuctionDateTime = startTime,
                 EndAuctionDateTime = endTime,
-                Bids = new List<BidElement>(new BidElement[] { new BidElement { BidAmount = 0, UserId = "Starting Bid" } })
+                Bids = new List<BidElement> { new BidElement { BidAmount = 0, UserId = "Starting Bid" } }
             };
 
             try
             {
-                // Opret auktion i databasen
                 await _auctionDbRepository.CreateAuction(auction);
                 _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
 
-                // Publiser auktionen til RabbitMQ
                 var publishSuccess = await PublishAuctionToRabbitMQ(item);
                 if (!publishSuccess)
                 {
                     _logger.LogWarning("Failed to publish auction for item {ItemId} to RabbitMQ.", item.Id);
                 }
-                
+
+                var listenerResult = await StartAuctionService(item.Id!);
+                if (listenerResult is not OkObjectResult)
+                {
+                    _logger.LogWarning("Failed to start listener for auction on item {ItemId}.", item.Id);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create auction for item {ItemId}.", item.Id);
+                _logger.LogError(ex, "Failed to create auction for item {ItemId}. Retrying in 5 seconds.", item.Id);
+                await Task.Delay(5000);
+                await AddAuctionItem(item); // Retry
             }
         }
+
 
         public async Task<bool> PublishAuctionToRabbitMQ(Item item)
         {

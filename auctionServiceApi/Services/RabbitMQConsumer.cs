@@ -51,87 +51,86 @@ public class RabbitMQListener : BackgroundService
         var cancellationTokenSource = new CancellationTokenSource();
         _activeListeners[itemId] = cancellationTokenSource;
 
-        Task.Run(() => ListenOnQueue(itemId, cancellationTokenSource.Token, endAuctionTime));
+        Task.Run(() =>
+        {
+            _logger.LogInformation("Starting listener for item {ItemId} until {EndAuctionTime}.", itemId, endAuctionTime);
+            ListenOnQueue(itemId, cancellationTokenSource.Token, endAuctionTime).Wait(); // Wait for listener to complete
+        });
     }
+
+
+
 
     // Stop listening for a specific queue
     public void StopListening(string itemId)
-    {
+    {   
         if (_activeListeners.TryGetValue(itemId, out var cancellationTokenSource))
         {
+            _activeListeners.Remove(itemId); // Fjern før annullering for at undgå race conditions
             cancellationTokenSource.Cancel();
-            _activeListeners.Remove(itemId);
-            _logger.LogInformation("Stopped listening on queue for item {ItemId}.", itemId);
+            _logger.LogInformation("Manually stopped listening on queue for item {ItemId}.", itemId);
+        }
+        else
+        {
+            _logger.LogWarning("No active listener found for item {ItemId}.", itemId);
         }
     }
+
+
+
+
 
     public async Task ListenOnQueue(string itemId, CancellationToken token, DateTimeOffset endAuctionTime)
+{
+    var queueName = $"{itemId}Queue";
+    _channel.QueueDeclare(queue: queueName, durable: false, exclusive: false, autoDelete: false, arguments: null);
+
+    var consumer = new EventingBasicConsumer(_channel);
+    consumer.Received += (model, ea) =>
     {
-        var queueName = $"{itemId}Queue";
-        _channel.QueueDeclare(queue: queueName, durable: false, exclusive: false, autoDelete: false, arguments: null);
+        var body = ea.Body.ToArray();
+        var message = Encoding.UTF8.GetString(body);
+        var bid = JsonSerializer.Deserialize<Bid>(message);
 
-        var consumer = new EventingBasicConsumer(_channel);
-        consumer.Received += (model, ea) =>
-        {
-            var body = ea.Body.ToArray();
-            var message = Encoding.UTF8.GetString(body);
-            var bid = JsonSerializer.Deserialize<Bid>(message);
+        _logger.LogInformation($"Received bid for item {itemId}: {bid?.Amount:C}");
+        ProcessBid(bid!);
+    };
 
-            _logger.LogInformation($"Received bid for item {itemId}: {bid?.Amount:C}");
-            ProcessBid(bid!);
-        };
+    _channel.BasicConsume(queue: queueName, autoAck: true, consumer: consumer);
+    _logger.LogInformation($"Started listening for bids on queue {queueName}.");
+    _logger.LogInformation($"Auction for item {itemId} ends at {endAuctionTime}.");
 
-        _channel.BasicConsume(queue: queueName, autoAck: true, consumer: consumer);
-        _logger.LogInformation($"Started listening for bids on queue {queueName}.");
+    while (!token.IsCancellationRequested && DateTimeOffset.UtcNow < endAuctionTime)
+    {
+        var delayTask = Task.Delay(1000); // 1 sekunds forsinkelse
+        var cancelTask = Task.Delay(-1, token); // Evig ventetid med annulleringsstøtte
 
-        // Hold lytningen aktiv, indtil auktionen slutter eller token annulleres
-        while (!token.IsCancellationRequested && DateTimeOffset.UtcNow < endAuctionTime)
-        {
-            await Task.Delay(1000, token); // Tjek hver sekund
-        }
-
-        StopListening(itemId); // Automatisk stop, når auktionen slutter
+        // Vent på forsinkelse eller annullering
+        await Task.WhenAny(delayTask, cancelTask);
     }
 
-        /*private async void ProcessBid(Bid bid)
-        {
-            _logger.LogInformation($"Processing bid {bid.Id} for item {bid.ItemId}.");
+    if (DateTimeOffset.UtcNow >= endAuctionTime)
+    {
+        _logger.LogInformation("Auction for item {ItemId} has ended.", itemId);
+        StopListening(itemId);
+        _logger.LogInformation("Stopped listening for auction {ItemId}.", itemId);
 
-            var auction = await _auctionDbRepository.GetAuctionByItemId(bid.ItemId);
-            if (auction == null)
-            {
-                _logger.LogWarning($"Auction for item {bid.ItemId} not found.");
-                return;
-            }
+    }
+    
+}
 
-            if (bid.Amount <= auction.CurrentBid)
-            {
-                _logger.LogWarning($"Bid {bid.Amount:C} is not higher than the current bid {auction.CurrentBid:C}.");
-                return;
-            }
 
-            auction.Bids.Add(new BidElement
-            {
-                BidAmount = bid.Amount,
-                UserId = bid.UserId
-            });
 
-            var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
-            if (updated)
-            {
-                _logger.LogInformation($"Auction {auction.Id} updated with new bid: {bid.Amount:C}, Current Winner: {bid.UserId}.");
-            }
-            else
-            {
-                _logger.LogError($"Failed to update auction {auction.Id} with new bid.");
-            }
-        }*/
+
+
+
+
         private async void ProcessBid(Bid bid)
         {
             _logger.LogInformation($"Processing bid {bid.Id} for item {bid.ItemId}.");
 
             // Hent auktionen
-            var auction = await _auctionDbRepository.GetAuctionByItemId(bid.ItemId);
+            var auction = await _auctionDbRepository.GetAuctionByItemId(bid.ItemId!);
 
             if (auction == null)
             {
@@ -153,7 +152,7 @@ public class RabbitMQListener : BackgroundService
             auction.Bids.Add(new BidElement
             {
                 BidAmount = bid.Amount,
-                UserId = bid.UserId
+                UserId = bid.UserId!
             });
 
             // Opdater auktionen i databasen
@@ -167,11 +166,6 @@ public class RabbitMQListener : BackgroundService
                 _logger.LogError($"Failed to update auction {auction.Id} with new bid.");
             }
         }
-
-
-
-
-
 
     public override void Dispose()
     {

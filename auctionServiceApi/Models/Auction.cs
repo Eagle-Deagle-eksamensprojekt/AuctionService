@@ -17,19 +17,19 @@ namespace AuctionServiceAPI.Models
         /// MongoDB's auto-generated ID for the auction document
         /// </summary>
         [JsonPropertyName("id")]
-        public string Id { get; set; }
+        public string? Id { get; set; }
 
         /// <summary>
         /// List of bids placed on the auction
         /// </summary>
         [JsonPropertyName("bids")]
-        public List<BidElement> Bids { get; set; }
+        public List<BidElement>? Bids { get; set; }
 
         [JsonIgnore] // Beregnede felter behøver ikke serialiseres
-        public double CurrentBid => Bids.LastOrDefault()?.BidAmount ?? 0;
+        public double CurrentBid => Bids?.LastOrDefault()?.BidAmount ?? 0;
 
         [JsonIgnore]
-        public string CurrentWinnerId => Bids.LastOrDefault()?.UserId ?? string.Empty;                      
+        public string CurrentWinnerId => Bids?.LastOrDefault()?.UserId ?? string.Empty;                      
 
         /// <summary>
         /// The start date and time for the auction of this item.
@@ -47,7 +47,7 @@ namespace AuctionServiceAPI.Models
         /// The ID of the item being auctioned
         /// </summary>
         [JsonPropertyName("itemId")]
-        public string ItemId { get; set; }
+        public string? ItemId { get; set; }
     }
 
     public class BidElement
