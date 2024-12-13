@@ -179,8 +179,8 @@ namespace Services
         /// </summary>
         private async Task AddAuctionItem(Item item)
         {
-            var startTime = DateTimeOffset.UtcNow.Date.AddHours(7); // Næste dag kl. 07:00
-            var endTime = startTime.AddHours(18); // Slutter kl. 8:00 næste dag
+            var startTime = DateTimeOffset.UtcNow.Date.AddHours(7); // I dag kl. 07:00 starter auktionen
+            var endTime = startTime.AddHours(9); // Slutter kl. 18:00 i aften
 
             var auction = new Auction
             {
