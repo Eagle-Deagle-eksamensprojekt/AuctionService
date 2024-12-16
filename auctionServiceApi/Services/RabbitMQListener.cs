@@ -55,11 +55,6 @@ public class RabbitMQListener : BackgroundService
         _logger.LogInformation("Started listener for item {ItemId} asynchronously.", itemId);
     }
 
-                                        
-
-
-
-
 
     // Stop listening for a specific queue
     public void StopListening(string itemId)
@@ -117,13 +112,6 @@ public class RabbitMQListener : BackgroundService
 
         _logger.LogInformation("Auction for {ItemId} ended. Stopping listener.", itemId);
     }
-
-
-
-
-
-
-
 
 
         private async void ProcessBid(Bid bid)

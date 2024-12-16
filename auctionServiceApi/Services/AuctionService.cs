@@ -256,7 +256,7 @@ namespace Services
             using var channel = connection.CreateModel();
 
             // Queue for today's auctions
-            var todaysAuctionsQueue = _config["TodaysAuctionsRabbitQueue"] ?? "TodaysAuctions";
+            var todaysAuctionsQueue = _config["TodaysAuctionsRabbitQueue"] ?? "TodaysAuctions"; // Default queue name is "TodaysAuctions"
             channel.QueueDeclare(
                 queue: todaysAuctionsQueue,
                 durable: false,
@@ -266,10 +266,11 @@ namespace Services
             );
 
             // Brug AuctionMessage-model til beskeden
-            var message = new AuctionMessage
+            var message = new TodaysAuctionMessage
             {
                 ItemId = item.Id!,
-                StartDate = DateTime.UtcNow
+                StartDate = DateTime.UtcNow,
+                EndAuctionDateTime = item.EndAuctionDateTime
             };
 
             var body = JsonSerializer.SerializeToUtf8Bytes(message);
