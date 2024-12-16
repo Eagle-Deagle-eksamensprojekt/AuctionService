@@ -94,61 +94,76 @@ namespace Services
         /// </summary>
         /// <param name="itemId"></param>
         /// <returns></returns>
-        public async Task<IActionResult> StartAuctionService(string itemId)
+    public async Task<IActionResult> StartAuctionService(string itemId)
+    {
+        var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+        if (auction == null)
         {
-            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
-            if (auction == null)
-            {
-                return new NotFoundObjectResult("Auction not found for the specified item.,");
-            }
+            return new NotFoundObjectResult($"Auction not found for item {itemId}.");
+        }
 
-            if (DateTimeOffset.UtcNow >= auction.EndAuctionDateTime)
-            {
-                return new BadRequestObjectResult("Cannot start listening for an auction that has already ended.");
-            }
-            
-            var cancellationTokenSource = new CancellationTokenSource(1000); // 1000 ms timeout
+        if (DateTimeOffset.UtcNow >= auction.EndAuctionDateTime)
+        {
+            return new BadRequestObjectResult($"Cannot start listening for an auction that has already ended: {itemId}.");
+        }
 
-            await _rabbitListener.ListenOnQueue(itemId, cancellationTokenSource.Token, auction.EndAuctionDateTime); // Start listener for auktionen
+        try
+        {
+            // Brug asynkron lytning her
+            _rabbitListener.StartListening(itemId, auction.EndAuctionDateTime); // slettet await fordi det er en void metode
+
+            _logger.LogInformation("Started listener for auction {ItemId}.", itemId);
             return new OkObjectResult($"Started listening for auction on item {itemId}.");
-        } 
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start listener for auction {ItemId}.", itemId);
+            return new StatusCodeResult(500);
+        }
+    }
+
+
 
 
         /// <summary>
         /// Intern metode til at hente og gemme auktioner.
         /// </summary>
-        public async Task<List<Item>> GetAndSaveAuctionableItems()
+    public async Task<List<Item>> GetAndSaveAuctionableItems()
+    {
+        var items = await GetItemsFromItemService();
+        if (items == null || !items.Any())
         {
-            // Hent items fra ItemService
-            var items = await GetItemsFromItemService();
-            if (items == null || !items.Any())
-                return new List<Item>();
+            _logger.LogWarning("No items fetched from ItemService.");
+            return new List<Item>();
+        }
 
-            // Sorter items efter oprettelsesdato (ældste først)
-            var sortedItems = items.OrderBy(i => i.CreatedDate).ToList();
+        var auctionableItems = new List<Item>();
 
-            // Find de 3 ældste, der ikke allerede er i databasen
-            var auctionableItems = new List<Item>();
-            foreach (var item in sortedItems)
+        foreach (var item in items.OrderBy(i => i.CreatedDate))
+        {
+            if (!await _auctionDbRepository.ItemExists(item.Id!))
             {
-                var exists = await _auctionDbRepository.ItemExists(item.Id!);
-                if (!exists)
+                auctionableItems.Add(item);
+                if (auctionableItems.Count == 3)
                 {
-                    
-                    auctionableItems.Add(item);
-                    if (auctionableItems.Count == 3)
-                        break;
+                    break;
                 }
             }
-
-            // Opret auktioner for de fundne items
-            foreach (var item in auctionableItems)
-            {
-                await AddAuctionItem(item);
-            }
-
-            return auctionableItems;
         }
+
+        var tasks = auctionableItems.Select(async item =>
+        {
+            _logger.LogInformation("Processing auction for item {ItemId}.", item.Id);
+            await AddAuctionItem(item);
+            _logger.LogInformation("Finished processing auction for item {ItemId}.", item.Id);
+        });
+
+        await Task.WhenAll(tasks); // Behandler alle auktioner parallelt
+        return auctionableItems!;
+    }
+
+
+
 
         /// <summary>
         /// Intern metode til at hente items fra ItemService.
@@ -177,96 +192,131 @@ namespace Services
         /// <summary>
         /// Intern metode til at oprette en ny auktion for et item.
         /// </summary>
-        private async Task AddAuctionItem(Item item)
+    private async Task AddAuctionItem(Item item)
+    {
+        var startTime = DateTimeOffset.UtcNow.Date.AddHours(7);
+        var endTime = startTime.AddHours(9);
+
+        var auction = new Auction
         {
-            var startTime = DateTimeOffset.UtcNow.Date.AddHours(7); // I dag kl. 07:00 starter auktionen
-            var endTime = startTime.AddHours(9); // Slutter kl. 18:00 i aften
+            ItemId = item.Id!,
+            StartAuctionDateTime = startTime,
+            EndAuctionDateTime = endTime,
+            Bids = new List<BidElement> { new BidElement { BidAmount = 0, UserId = "Starting Bid" } }
+        };
 
-            var auction = new Auction
-            {
-                ItemId = item.Id!,
-                StartAuctionDateTime = startTime,
-                EndAuctionDateTime = endTime,
-                Bids = new List<BidElement> { new BidElement { BidAmount = 0, UserId = "Starting Bid" } }
-            };
-
+        for (int attempt = 0; attempt < 3; attempt++) // Maksimalt 3 forsøg
+        {
             try
             {
+                _logger.LogInformation("Attempt {Attempt} to add auction for item {ItemId}.", attempt + 1, item.Id);
+
                 await _auctionDbRepository.CreateAuction(auction);
-                _logger.LogInformation("Created auction for item {ItemId}.", item.Id);
+                _logger.LogInformation("Auction for item {ItemId} created in database.", item.Id);
 
                 var publishSuccess = await PublishAuctionToRabbitMQ(item);
                 if (!publishSuccess)
                 {
                     _logger.LogWarning("Failed to publish auction for item {ItemId} to RabbitMQ.", item.Id);
+                    continue;
                 }
+
+                _logger.LogInformation("Auction for item {ItemId} published to RabbitMQ.", item.Id);
 
                 var listenerResult = await StartAuctionService(item.Id!);
-                if (listenerResult is not OkObjectResult)
+                if (listenerResult is OkObjectResult)
                 {
-                    _logger.LogWarning("Failed to start listener for auction on item {ItemId}.", item.Id);
+                    _logger.LogInformation("Listener started successfully for item {ItemId}.", item.Id);
+                    break;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create auction for item {ItemId}. Retrying in 5 seconds.", item.Id);
+                _logger.LogError(ex, "Error adding auction for item {ItemId}. Retrying in 5 seconds.", item.Id);
                 await Task.Delay(5000);
-                await AddAuctionItem(item); // Retry
             }
         }
+    }
 
 
-        public async Task<bool> PublishAuctionToRabbitMQ(Item item)
+
+    public async Task<bool> PublishAuctionToRabbitMQ(Item item)
+    {
+        var rabbitHost = _config["RABBITMQ_HOST"] ?? "localhost";
+
+        try
         {
-            var rabbitHost = _config["RABBITMQ_HOST"] ?? "localhost"; 
-
-            try
+            var factory = new ConnectionFactory
             {
-                var factory = new ConnectionFactory
-                {
-                    HostName = rabbitHost,
-                    DispatchConsumersAsync = true
-                };
+                HostName = rabbitHost,
+                DispatchConsumersAsync = true
+            };
 
-                using var connection = factory.CreateConnection(); 
-                using var channel = connection.CreateModel();
+            using var connection = factory.CreateConnection();
+            using var channel = connection.CreateModel();
 
-                // Queue name based on ItemId
-                var itemId = item.Id;
-                if (itemId == null)
-                {
-                    _logger.LogError("Failed to get ItemId from item.");
-                    return false;
-                }
-                var queueName = _config["TodaysAuctionsRabbitQueue"];
+            // Queue for today's auctions
+            var todaysAuctionsQueue = _config["TodaysAuctionsRabbitQueue"] ?? "TodaysAuctions";
+            channel.QueueDeclare(
+                queue: todaysAuctionsQueue,
+                durable: false,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null
+            );
 
-                channel.QueueDeclare(
-                    queue: queueName,
-                    durable: false,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null
-                );
-
-                var message = JsonSerializer.Serialize(item);
-                var body = Encoding.UTF8.GetBytes(message);
-
-                channel.BasicPublish(
-                    exchange: "",
-                    routingKey: queueName,
-                    basicProperties: null,
-                    body: body
-                );
-
-                _logger.LogInformation("Published item {ItemId} to RabbitMQ queue {QueueName}.", item.Id, queueName);
-                return true;
-            }
-            catch (Exception ex)
+            // Brug AuctionMessage-model til beskeden
+            var message = new AuctionMessage
             {
-                _logger.LogError(ex, "Failed to publish item {ItemId} to RabbitMQ.", item.Id);
-                return false;
-            }
+                ItemId = item.Id!,
+                StartDate = DateTime.UtcNow
+            };
+
+            var body = JsonSerializer.SerializeToUtf8Bytes(message);
+
+            // Publish the message to the queue
+            channel.BasicPublish(
+                exchange: "",
+                routingKey: todaysAuctionsQueue,
+                basicProperties: null,
+                body: body
+            );
+
+            // Start listening on the specific item queue
+            await StartListeningForItemQueue(item.Id!);
+            _logger.LogInformation("Published auction for item {ItemId} to queue {QueueName}.", item.Id, todaysAuctionsQueue);
+
+            return true;
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish auction for item {ItemId} to RabbitMQ.", item.Id);
+            return false;
+        }
+    }
+
+
+    private async Task StartListeningForItemQueue(string itemId)
+    {
+        try
+        {
+            // Retrieve the listener instance
+            var rabbitLogger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<RabbitMQListener>();
+            var listener = new RabbitMQListener(rabbitLogger, _config, _auctionDbRepository);
+
+            // Determine auction end time (for simplicity, set to 18:00 UTC)
+            var auctionEndTime = DateTime.UtcNow.Date.AddHours(18);
+
+            listener.StartListening(itemId, auctionEndTime); // fjernet await fordi det er en void metode
+
+            _logger.LogInformation("Started listener for item queue {ItemId}Queue.", itemId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start listener for item {ItemId}Queue.", itemId);
+        }
+    }
+
 
 
     }

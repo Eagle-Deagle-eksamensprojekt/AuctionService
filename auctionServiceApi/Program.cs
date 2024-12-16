@@ -53,7 +53,7 @@ foreach (var auction in activeAuctions)
 {
     if (DateTimeOffset.UtcNow < auction.EndAuctionDateTime)
     {
-        rabbitListener.StartListening(auction.ItemId, auction.EndAuctionDateTime);
+        rabbitListener.StartListening(auction.ItemId!, auction.EndAuctionDateTime);
     }
 }
 

@@ -161,6 +161,12 @@ namespace AuctionServiceAPI.Controllers
                 return BadRequest("Item ID is required.");
             }
 
+            if (!MongoDB.Bson.ObjectId.TryParse(itemId, out _))
+            {
+                _logger.LogWarning("Invalid Item ID format: {ItemId}. Must be a 24-character hex string.", itemId);
+                return BadRequest("Invalid Item ID format. Must be a 24-character hex string.");
+            }
+
             try
             {
                 _logger.LogInformation("Checking if item {ItemId} is auctionable.", itemId);

@@ -51,12 +51,12 @@ public class RabbitMQListener : BackgroundService
         var cancellationTokenSource = new CancellationTokenSource();
         _activeListeners[itemId] = cancellationTokenSource;
 
-        Task.Run(() =>
-        {
-            _logger.LogInformation("Starting listener for item {ItemId} until {EndAuctionTime}.", itemId, endAuctionTime);
-            ListenOnQueue(itemId, cancellationTokenSource.Token, endAuctionTime).Wait(); // Wait for listener to complete
-        });
+        _ = ListenOnQueue(itemId, cancellationTokenSource.Token, endAuctionTime); //ListenOnQueue kaldes direkte som en fire-and-forget opgave med _
+        _logger.LogInformation("Started listener for item {ItemId} asynchronously.", itemId);
     }
+
+                                        
+
 
 
 
@@ -81,43 +81,44 @@ public class RabbitMQListener : BackgroundService
 
 
     public async Task ListenOnQueue(string itemId, CancellationToken token, DateTimeOffset endAuctionTime)
-{
-    var queueName = $"{itemId}Queue";
-    _channel.QueueDeclare(queue: queueName, durable: false, exclusive: false, autoDelete: false, arguments: null);
-
-    var consumer = new EventingBasicConsumer(_channel);
-    consumer.Received += (model, ea) =>
     {
-        var body = ea.Body.ToArray();
-        var message = Encoding.UTF8.GetString(body);
-        var bid = JsonSerializer.Deserialize<Bid>(message);
+        var queueName = $"{itemId}Queue";
+        _channel.QueueDeclare(queue: queueName, durable: false, exclusive: false, autoDelete: false, arguments: null);
 
-        _logger.LogInformation($"Received bid for item {itemId}: {bid?.Amount:C}");
-        ProcessBid(bid!);
-    };
+        var consumer = new EventingBasicConsumer(_channel);
+        consumer.Received += (model, ea) =>
+        {
+            var body = ea.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            var bid = JsonSerializer.Deserialize<Bid>(message);
 
-    _channel.BasicConsume(queue: queueName, autoAck: true, consumer: consumer);
-    _logger.LogInformation($"Started listening for bids on queue {queueName}.");
-    _logger.LogInformation($"Auction for item {itemId} ends at {endAuctionTime}.");
+            _logger.LogInformation("Received bid for item {ItemId}: {Amount}.", itemId, bid?.Amount);
+            ProcessBid(bid!);
+        };
 
-    while (!token.IsCancellationRequested && DateTimeOffset.UtcNow < endAuctionTime)
-    {
-        var delayTask = Task.Delay(1000); // 1 sekunds forsinkelse
-        var cancelTask = Task.Delay(-1, token); // Evig ventetid med annulleringsstøtte
+        _channel.BasicConsume(queue: queueName, autoAck: true, consumer: consumer);
+        _logger.LogInformation("Started listening for bids on queue {QueueName}.", queueName);
 
-        // Vent på forsinkelse eller annullering
-        await Task.WhenAny(delayTask, cancelTask);
+        try
+        {
+            while (!token.IsCancellationRequested && DateTimeOffset.UtcNow < endAuctionTime)
+            {
+                await Task.Delay(1000, token); // Vent 1 sekund mellem iterationer
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogInformation("Listening for item {ItemId} was canceled.", itemId);
+        }
+        finally
+        {
+            StopListening(itemId);
+        }
+
+        _logger.LogInformation("Auction for {ItemId} ended. Stopping listener.", itemId);
     }
 
-    if (DateTimeOffset.UtcNow >= endAuctionTime)
-    {
-        _logger.LogInformation("Auction for item {ItemId} has ended.", itemId);
-        StopListening(itemId);
-        _logger.LogInformation("Stopped listening for auction {ItemId}.", itemId);
 
-    }
-    
-}
 
 
 
@@ -156,7 +157,7 @@ public class RabbitMQListener : BackgroundService
             });
 
             // Opdater auktionen i databasen
-            var updated = await _auctionDbRepository.UpdateAuction(auction.Id, auction);
+            var updated = await _auctionDbRepository.UpdateAuction(auction.Id!, auction);
             if (updated)
             {
                 _logger.LogInformation($"Auction {auction.Id} updated with new bid: {bid.Amount:C}, Current Winner: {bid.UserId}.");
