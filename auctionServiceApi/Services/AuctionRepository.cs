@@ -1,10 +1,5 @@
 using MongoDB.Driver;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using AuctionServiceAPI.Models;
-using Microsoft.AspNetCore.Mvc; // For at referere til Auction modellen
 
 namespace Services
 {

@@ -1,9 +1,7 @@
-using System.Text;
 using System.Text.Json;
 using AuctionServiceAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using RabbitMQ.Client;
-using Services;
 
 
 
