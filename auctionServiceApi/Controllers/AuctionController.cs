@@ -203,17 +203,83 @@ namespace AuctionServiceAPI.Controllers
             return Ok($"Started listening for auction on item {id}.");
         }
 
-        // Denne skal bruges i index.html
-        [HttpPost("Price")]
-        public async Task<IActionResult> GetPrice(string itemId)
+        // Hurtig klasse til at tjekke prisen på et item
+        public class PriceRequest
         {
-            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
-            if (auction == null)
+            public string ItemId { get; set; }
+        }
+
+        [HttpPost("price")]
+        public async Task<IActionResult> GetPrice([FromBody] PriceRequest request)
+        {
+            if (string.IsNullOrEmpty(request.ItemId))
             {
-                return NotFound(new { Message = $"Auction for item {itemId} not found." });
+                return BadRequest("ItemId is required.");
             }
 
-            return Ok( new {auction.CurrentBid});
+            var auction = await _auctionDbRepository.GetAuctionByItemId(request.ItemId);
+            if (auction == null)
+            {
+                return NotFound($"Auction for item {request.ItemId} not found.");
+            }
+
+            return Ok(auction.CurrentBid);
+        }
+
+
+
+        [HttpPost("CreateAuction")]
+        public async Task<IActionResult> CreateAuction([FromBody] Auction newAuction)
+        {
+            if (newAuction == null)
+            {
+                return BadRequest("Auction object is required.");
+            }
+
+            if (newAuction.StartAuctionDateTime >= newAuction.EndAuctionDateTime)
+            {
+                return BadRequest("Auction start date must be before end date.");
+            }
+
+            if (string.IsNullOrWhiteSpace(newAuction.ItemId))
+            {
+                return BadRequest("Item ID is required.");
+            }
+
+            if (!await _auctionDbRepository.ItemExists(newAuction.ItemId))
+            {
+                return NotFound("Item not found.");
+            }
+
+            if (await _auctionDbRepository.GetAuctionByItemId(newAuction.ItemId) != null)
+            {
+                return Conflict("Auction already exists for item.");
+            }
+
+            if (newAuction.Bids == null)
+            {
+                newAuction.Bids = new List<BidElement>();
+            }
+
+            try
+            {
+                var created = await _auctionDbRepository.CreateAuction(newAuction);
+                if (created)
+                {
+                    _logger.LogInformation($"Auction created for item {newAuction.ItemId}.");
+                    return CreatedAtAction(nameof(GetAuctionById), new { id = newAuction.Id }, newAuction);
+                }
+                else
+                {
+                    _logger.LogError("Failed to create auction.");
+                    return StatusCode(500, "Failed to create auction.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create auction.");
+                return StatusCode(500, "Failed to create auction.");
+            }
         }
     }
 }

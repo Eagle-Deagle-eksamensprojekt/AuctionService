@@ -103,6 +103,7 @@ namespace Services
                 {
                     _logger.LogWarning($"No auction found for item {itemId}.");
                 }
+                _logger.LogInformation($"Retrieved auction for item {itemId}.");
                 return auction;
             }
             catch (Exception ex)
