@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using AuctionServiceAPI.Models;
 using Services; 
 using System.Diagnostics;
+using Microsoft.AspNetCore.Authorization;
+
 
 namespace AuctionServiceAPI.Controllers
 {
@@ -35,6 +37,7 @@ namespace AuctionServiceAPI.Controllers
         /// <summary>
         /// Hent version af Service
         /// </summary>
+        [Authorize]
         [HttpGet("version")]
         public async Task<Dictionary<string, string>> GetVersion()
         {
@@ -57,6 +60,7 @@ namespace AuctionServiceAPI.Controllers
         /// <summary>
         /// Hent alle auktioner.
         /// </summary>
+        [Authorize]
         [HttpGet("all")]
         public async Task<IActionResult> GetAllAuctions()
         {
@@ -69,6 +73,7 @@ namespace AuctionServiceAPI.Controllers
         /// <summary>
         /// Hent en specifik auktion ved ID.
         /// </summary>
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAuctionById(string id)
         {
@@ -84,6 +89,7 @@ namespace AuctionServiceAPI.Controllers
         /// <summary>
         /// Fetches and saves auctionable items, then publishes them to RabbitMQ.
         /// </summary>
+        [Authorize]
         [HttpGet("fetch-and-save-auctionable")]
         public async Task<IActionResult> FetchAndSaveAuctionableItems()
         {
@@ -112,6 +118,7 @@ namespace AuctionServiceAPI.Controllers
         /// <summary>
         /// Bid service skal validere om et bud er gyldigt inden den poste til RabbitMQ
         /// </summary>
+        [Authorize]
         [HttpGet("auctionable/{itemId}")]
         public async Task<IActionResult> CheckItemIsAuctionable(string itemId)
         {
@@ -156,6 +163,7 @@ namespace AuctionServiceAPI.Controllers
             }
         }
 
+        [Authorize]
         [HttpPost("stop-auction")]
         public IActionResult StopAuction(string itemId)
         {
@@ -163,6 +171,7 @@ namespace AuctionServiceAPI.Controllers
             return Ok($"Stopped listening for auction on item {itemId}.");
         }
 
+        [Authorize]
         [HttpPost("{itemId}")]
         public async Task<IActionResult> PlaceBid(string itemId, [FromBody] Bid bid)
         {
@@ -196,6 +205,7 @@ namespace AuctionServiceAPI.Controllers
             }
         }
 
+        [Authorize]
         [HttpPost("start-listener")]
         public async Task<IActionResult> StartListener(string id)
         {
@@ -209,6 +219,7 @@ namespace AuctionServiceAPI.Controllers
             public string ItemId { get; set; }
         }
 
+        [Authorize]
         [HttpPost("price")]
         public async Task<IActionResult> GetPrice([FromBody] PriceRequest request)
         {
@@ -226,6 +237,7 @@ namespace AuctionServiceAPI.Controllers
             return Ok(auction.CurrentBid);
         }
 
+        [Authorize]
         [HttpPost("data")]
         public async Task<IActionResult> GetData([FromBody] PriceRequest request) // genbrug af PriceRequest for nemhed
         {
@@ -242,7 +254,5 @@ namespace AuctionServiceAPI.Controllers
 
             return Ok(auction);
         }
-
-        
     }
 }
