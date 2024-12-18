@@ -118,7 +118,7 @@ namespace AuctionServiceAPI.Controllers
         /// <summary>
         /// Bid service skal validere om et bud er gyldigt inden den poste til RabbitMQ
         /// </summary>
-        [Authorize]
+        [AllowAnonymous]
         [HttpGet("auctionable/{itemId}")]
         public async Task<IActionResult> CheckItemIsAuctionable(string itemId)
         {
