@@ -41,6 +41,7 @@ builder.Host.UseNLog();
 builder.Services.AddHttpClient(); //tjek
 
 // Vault-integration
+// Vault-integration
 var vaultToken = Environment.GetEnvironmentVariable("VAULT_TOKEN") 
                  ?? throw new Exception("Vault token not found");
 var vaultUrl = Environment.GetEnvironmentVariable("VAULT_URL") 
@@ -53,6 +54,15 @@ var vaultClient = new VaultClient(vaultClientSettings);
 var kv2Secret = await vaultClient.V1.Secrets.KeyValue.V2.ReadSecretAsync(path: "Secrets", mountPoint: "secret");
 var jwtSecret = kv2Secret.Data.Data["jwtSecret"]?.ToString() ?? throw new Exception("jwtSecret not found in Vault.");
 var jwtIssuer = kv2Secret.Data.Data["jwtIssuer"]?.ToString() ?? throw new Exception("jwtIssuer not found in Vault.");
+var mongoConnectionString = kv2Secret.Data.Data["MongoConnectionString"]?.ToString() ?? throw new Exception("MongoConnectionString not found in Vault.");
+
+// Dependency injection for AuctionMongoDBService
+builder.Services.AddSingleton<IAuctionDbRepository>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<AuctionMongoDBService>>();
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    return new AuctionMongoDBService(logger, mongoConnectionString, configuration);
+});
 
 
 // Register JWT authentication

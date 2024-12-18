@@ -8,13 +8,13 @@ namespace Services
         private readonly IMongoCollection<Auction> _auctionCollection;
         private readonly ILogger<AuctionMongoDBService> _logger;
 
-        public AuctionMongoDBService(ILogger<AuctionMongoDBService> logger, IConfiguration configuration)
+        public AuctionMongoDBService(ILogger<AuctionMongoDBService> logger, string mongoConnectionString, IConfiguration configuration)
         {
             _logger = logger;
 
-            var connectionString = configuration["MongoConnectionString"] ?? "<blank>";
+            var connectionString = mongoConnectionString ?? throw new Exception("MongoConnectionString is missing");
             var databaseName = configuration["DatabaseName"] ?? "<blank>";
-            var collectionName = configuration["collectionName"] ?? "<blank>";
+            var collectionName = configuration["CollectionName"] ?? "<blank>";
 
             _logger.LogInformation($"Connecting to MongoDB using: {connectionString}");
             _logger.LogInformation($"Using database: {databaseName}");
