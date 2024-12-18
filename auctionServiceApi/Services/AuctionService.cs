@@ -14,6 +14,7 @@ namespace Services
         private readonly ILogger<AuctionService> _logger;
         private readonly IConfiguration _config;
         private readonly RabbitMQListener _rabbitListener;
+        private DateTimeOffset _auctionEndTime;
 
         public AuctionService(
             IAuctionDbRepository auctionDbRepository,
@@ -268,7 +269,7 @@ namespace Services
             {
                 ItemId = item.Id!,
                 StartDate = DateTime.UtcNow,
-                EndAuctionDateTime = item.EndAuctionDateTime
+                EndAuctionDateTime = _auctionEndTime
             };
 
             var body = JsonSerializer.SerializeToUtf8Bytes(message);
@@ -304,9 +305,9 @@ namespace Services
             var listener = new RabbitMQListener(rabbitLogger, _config, _auctionDbRepository);
 
             // Determine auction end time (for simplicity, set to 18:00 UTC)
-            var auctionEndTime = DateTime.UtcNow.Date.AddHours(18);
+            _auctionEndTime = DateTime.UtcNow.Date.AddHours(18);
 
-            listener.StartListening(itemId, auctionEndTime); // fjernet await fordi det er en void metode
+            listener.StartListening(itemId, _auctionEndTime); // fjernet await fordi det er en void metode
 
             _logger.LogInformation("Started listener for item queue {ItemId}Queue.", itemId);
         }

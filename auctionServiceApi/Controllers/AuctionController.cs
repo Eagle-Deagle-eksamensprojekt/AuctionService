@@ -226,60 +226,23 @@ namespace AuctionServiceAPI.Controllers
             return Ok(auction.CurrentBid);
         }
 
-
-
-        [HttpPost("CreateAuction")]
-        public async Task<IActionResult> CreateAuction([FromBody] Auction newAuction)
+        [HttpPost("data")]
+        public async Task<IActionResult> GetData([FromBody] PriceRequest request) // genbrug af PriceRequest for nemhed
         {
-            if (newAuction == null)
+            if (string.IsNullOrEmpty(request.ItemId))
             {
-                return BadRequest("Auction object is required.");
+                return BadRequest("ItemId is required.");
             }
 
-            if (newAuction.StartAuctionDateTime >= newAuction.EndAuctionDateTime)
+            var auction = await _auctionDbRepository.GetAuctionByItemId(request.ItemId);
+            if (auction == null)
             {
-                return BadRequest("Auction start date must be before end date.");
+                return NotFound($"Auction for item {request.ItemId} not found.");
             }
 
-            if (string.IsNullOrWhiteSpace(newAuction.ItemId))
-            {
-                return BadRequest("Item ID is required.");
-            }
-
-            if (!await _auctionDbRepository.ItemExists(newAuction.ItemId))
-            {
-                return NotFound("Item not found.");
-            }
-
-            if (await _auctionDbRepository.GetAuctionByItemId(newAuction.ItemId) != null)
-            {
-                return Conflict("Auction already exists for item.");
-            }
-
-            if (newAuction.Bids == null)
-            {
-                newAuction.Bids = new List<BidElement>();
-            }
-
-            try
-            {
-                var created = await _auctionDbRepository.CreateAuction(newAuction);
-                if (created)
-                {
-                    _logger.LogInformation($"Auction created for item {newAuction.ItemId}.");
-                    return CreatedAtAction(nameof(GetAuctionById), new { id = newAuction.Id }, newAuction);
-                }
-                else
-                {
-                    _logger.LogError("Failed to create auction.");
-                    return StatusCode(500, "Failed to create auction.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create auction.");
-                return StatusCode(500, "Failed to create auction.");
-            }
+            return Ok(auction);
         }
+
+        
     }
 }
