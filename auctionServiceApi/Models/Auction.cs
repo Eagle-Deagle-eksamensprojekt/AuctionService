@@ -25,9 +25,15 @@ namespace AuctionServiceAPI.Models
         [JsonPropertyName("bids")]
         public List<BidElement>? Bids { get; set; }
 
+        /// <summary>
+        /// The current bid amount for the auction
+        /// </summary>
         [JsonIgnore] // Beregnede felter behøver ikke serialiseres
         public double CurrentBid => Bids?.LastOrDefault()?.BidAmount ?? 0;
 
+        /// <summary>
+        /// The ID of the user who is currently winning the auction
+        /// </summary>
         [JsonIgnore]
         public string CurrentWinnerId => Bids?.LastOrDefault()?.UserId ?? string.Empty;                      
 

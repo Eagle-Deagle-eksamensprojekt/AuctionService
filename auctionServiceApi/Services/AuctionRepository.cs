@@ -50,20 +50,20 @@ namespace Services
 
         public async Task<Auction> GetAuctionById(string id)
         {
-            return await _auctionCollection.Find(a => a.Id == id).FirstOrDefaultAsync();
+            return await _auctionCollection.Find(a => a.Id == id).FirstOrDefaultAsync(); // Find auction by ID
         }
 
         public async Task<IEnumerable<Auction>> GetAllAuctions()
         {
-            return await _auctionCollection.Find(_ => true).ToListAsync();
+            return await _auctionCollection.Find(_ => true).ToListAsync(); // Find all auctions
         }
 
         public async Task<bool> UpdateAuction(string id, Auction updatedAuction)
         {
             try
             {
-                var result = await _auctionCollection.ReplaceOneAsync(a => a.Id == id, updatedAuction);
-                if (result.IsAcknowledged && result.ModifiedCount > 0)
+                var result = await _auctionCollection.ReplaceOneAsync(a => a.Id == id, updatedAuction); // Replace auction with updated auction
+                if (result.IsAcknowledged && result.ModifiedCount > 0) // Check if the update was successful
                 {
                     _logger.LogInformation($"Successfully updated auction {id}.");
                     return true;
@@ -84,8 +84,8 @@ namespace Services
         {
             try
             {
-                var result = await _auctionCollection.DeleteOneAsync(a => a.Id == id);
-                return result.IsAcknowledged && result.DeletedCount > 0;
+                var result = await _auctionCollection.DeleteOneAsync(a => a.Id == id); // Delete auction by ID
+                return result.IsAcknowledged && result.DeletedCount > 0; // Check if the delete was successful
             }
             catch (Exception ex)
             {
@@ -98,8 +98,8 @@ namespace Services
         {
             try
             {
-                var auction = await _auctionCollection.Find(a => a.ItemId == itemId).FirstOrDefaultAsync();
-                if (auction == null)
+                var auction = await _auctionCollection.Find(a => a.ItemId == itemId).FirstOrDefaultAsync(); // Find auction by item ID
+                if (auction == null) // Check if the auction was found
                 {
                     _logger.LogWarning($"No auction found for item {itemId}.");
                 }
@@ -116,10 +116,10 @@ namespace Services
 
         public async Task<bool> ItemExists(string itemId)
         {
-            return await _auctionCollection.Find(a => a.ItemId == itemId).AnyAsync();
+            return await _auctionCollection.Find(a => a.ItemId == itemId).AnyAsync(); // Check if an auction exists for the item
         }
 
-        public async Task AddAuctionItem(Item item)
+        public async Task AddAuctionItem(Item item) // Create an auction for an item
         {
             var today = DateTimeOffset.UtcNow.Date;
             var startAuctionTime = today.AddHours(8); // Start kl. 08:00

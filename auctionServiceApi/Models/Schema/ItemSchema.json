@@ -36,11 +36,6 @@
       "format": "date-time",
       "description": "The date and time when the item was created."
     },
-    "startPrice": {
-      "type": "number",
-      "minimum": 0,
-      "description": "The starting price for the auction of this item."
-    },
     "vurdertPrice": {
       "type": "number",
       "minimum": 0,
@@ -55,7 +50,6 @@
     "startAuctionDateTime",
     "endAuctionDateTime",
     "createdDate",
-    "startPrice",
     "vurdertPrice"
   ]
 }

@@ -65,9 +65,9 @@ namespace AuctionServiceAPI.Controllers
         public async Task<IActionResult> GetAllAuctions()
         {
             // Hent auktioner fra databasen og konverter til List<Auction>
-            var auctions = (await _auctionDbRepository.GetAllAuctions()).ToList();
+            var auctions = (await _auctionDbRepository.GetAllAuctions()).ToList(); // Hent alle auktioner fra databasen
             _logger.LogInformation("Auktioner hentet fra databasen.");
-            return Ok( new {auctions});
+            return Ok( new {auctions}); // Returner auktioner som JSON
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAuctionById(string id)
         {
-            var auction = await _auctionDbRepository.GetAuctionById(id);
+            var auction = await _auctionDbRepository.GetAuctionById(id); // Hent auktion fra databasen
 
             if (auction == null)
                 return NotFound($"Auction with ID {id} not found.");
@@ -95,14 +95,14 @@ namespace AuctionServiceAPI.Controllers
         {
             try
             {
-                var auctionableItems = await _auctionService.GetAndSaveAuctionableItems();
+                var auctionableItems = await _auctionService.GetAndSaveAuctionableItems(); // Hent og gem auktionsvarer
                 if (auctionableItems == null || !auctionableItems.Any())
                 {
                     _logger.LogInformation("No auctionable items were found or saved.");
-                    return Ok("No auctionable items were found or saved.");
+                    return Ok("No auctionable items were found or saved."); // Ingen auktionsvarer fundet
                 }
 
-                return Ok(new
+                return Ok(new 
                 {
                     Message = "Successfully fetched, saved, and published auctionable items.",
                     Items = auctionableItems
@@ -127,7 +127,7 @@ namespace AuctionServiceAPI.Controllers
                 return BadRequest("Item ID is required.");
             }
 
-            if (!MongoDB.Bson.ObjectId.TryParse(itemId, out _))
+            if (!MongoDB.Bson.ObjectId.TryParse(itemId, out _)) // Tjek om item ID er en gyldig 24 karakter hex string
             {
                 _logger.LogWarning("Invalid Item ID format: {ItemId}. Must be a 24-character hex string.", itemId);
                 return BadRequest("Invalid Item ID format. Must be a 24-character hex string.");
@@ -167,7 +167,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpPost("stop-auction")]
         public IActionResult StopAuction(string itemId)
         {
-            _rabbitListener.StopListening(itemId);
+            _rabbitListener.StopListening(itemId); // Stop listener for auktion
             return Ok($"Stopped listening for auction on item {itemId}.");
         }
 
@@ -177,22 +177,22 @@ namespace AuctionServiceAPI.Controllers
         {
             _logger.LogInformation($"Placing bid for item {itemId}. Amount: {bid.Amount}");
 
-            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId);
+            var auction = await _auctionDbRepository.GetAuctionByItemId(itemId); // Hent auktion fra databasen
             if (auction == null)
             {
                 _logger.LogWarning($"Auction for item {itemId} not found.");
                 return NotFound($"Auction for item {itemId} not found.");
             }
 
-            if (bid.Amount <= auction.CurrentBid)
+            if (bid.Amount <= auction.CurrentBid) // Tjek om det nye bud er højere end det nuværende
             {
                 _logger.LogWarning($"Bid {bid.Amount} is not higher than current bid {auction.CurrentBid}.");
                 return BadRequest($"Bid is not higher than current bid {auction.CurrentBid}.");
             }
 
-            auction.Bids?.Add(new BidElement { BidAmount = bid.Amount, UserId = bid.UserId! });
+            auction.Bids?.Add(new BidElement { BidAmount = bid.Amount, UserId = bid.UserId! }); // Tilføj det nye bud til auktionen
 
-            var updated = await _auctionDbRepository.UpdateAuction(auction.Id!, auction);
+            var updated = await _auctionDbRepository.UpdateAuction(auction.Id!, auction); // Opdater auktionen i databasen
             if (updated)
             {
                 _logger.LogInformation($"Auction {auction.Id} updated with new bid of {bid.Amount}.");
@@ -209,7 +209,7 @@ namespace AuctionServiceAPI.Controllers
         [HttpPost("start-listener")]
         public async Task<IActionResult> StartListener(string id)
         {
-            await _auctionService.StartAuctionService(id);
+            await _auctionService.StartAuctionService(id); // Start listener for auktion
             return Ok($"Started listening for auction on item {id}.");
         }
 
@@ -228,13 +228,13 @@ namespace AuctionServiceAPI.Controllers
                 return BadRequest("ItemId is required.");
             }
 
-            var auction = await _auctionDbRepository.GetAuctionByItemId(request.ItemId);
+            var auction = await _auctionDbRepository.GetAuctionByItemId(request.ItemId); // Hent auktion fra databasen
             if (auction == null)
             {
                 return NotFound($"Auction for item {request.ItemId} not found.");
             }
 
-            return Ok(auction.CurrentBid);
+            return Ok(auction.CurrentBid); // Returner nuværende højeste bud
         }
 
         [Authorize]
@@ -246,13 +246,13 @@ namespace AuctionServiceAPI.Controllers
                 return BadRequest("ItemId is required.");
             }
 
-            var auction = await _auctionDbRepository.GetAuctionByItemId(request.ItemId);
+            var auction = await _auctionDbRepository.GetAuctionByItemId(request.ItemId); // Hent auktion fra databasen
             if (auction == null)
             {
                 return NotFound($"Auction for item {request.ItemId} not found.");
             }
 
-            return Ok(auction);
+            return Ok(auction); // Returner auktion
         }
     }
 }
