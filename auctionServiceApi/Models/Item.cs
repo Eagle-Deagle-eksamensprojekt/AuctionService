@@ -30,37 +30,19 @@ namespace AuctionServiceAPI.Models
         /// A detailed description of the item.
         /// </summary>
         [JsonPropertyName("description")]
-        public string Description { get; set; }
-
-        /// <summary>
-        /// The end date and time for the auction of this item.
-        /// </summary>
-        [JsonPropertyName("endAuctionDateTime")]
-        public DateTimeOffset EndAuctionDateTime { get; set; }
+        public string? Description { get; set; }
 
         /// <summary>
         /// The ID of the user who owns this item (must reference a user with isSeller = true).
         /// </summary>
         [JsonPropertyName("ownerId")]
-        public string OwnerId { get; set; }
-
-        /// <summary>
-        /// The start date and time for the auction of this item.
-        /// </summary>
-        [JsonPropertyName("startAuctionDateTime")]
-        public DateTimeOffset StartAuctionDateTime { get; set; }
-
-        /// <summary>
-        /// The starting price for the auction of this item.
-        /// </summary>
-        [JsonPropertyName("startPrice")]
-        public double StartPrice { get; set; }
+        public string? OwnerId { get; set; }
 
         /// <summary>
         /// The title or name of the item.
         /// </summary>
         [JsonPropertyName("title")]
-        public string Title { get; set; }
+        public string? Title { get; set; }
 
         /// <summary>
         /// The estimated value of the item.
